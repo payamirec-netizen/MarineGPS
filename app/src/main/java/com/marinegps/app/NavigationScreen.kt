@@ -42,7 +42,13 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  Canvas(Modifier.fillMaxSize().padding(24.dp)){
  val r=size.minDimension/2;val c=center
  drawCircle(outline,r,c,style=Stroke(1.dp.toPx()))
- for(i in 0 until 36){val a=i*PI/18;val d=if(i%3==0)0.86f else 0.94f;fun pt(k:Float)=Offset(c.x+(sin(a)*r*k).toFloat(),c.y-(cos(a)*r*k).toFloat());drawLine(outline,pt(d),pt(1f),1.dp.toPx())}
+ for(i in 0 until 36){
+ val a=i*PI/18
+ val d=if(i%3==0)0.86f else 0.94f
+ val inner=Offset(c.x+(sin(a)*r*d).toFloat(),c.y-(cos(a)*r*d).toFloat())
+ val outer=Offset(c.x+(sin(a)*r).toFloat(),c.y-(cos(a)*r).toFloat())
+ drawLine(outline,inner,outer,1.dp.toPx())
+ }
  fun point(a:Double,k:Float)=Offset(c.x+(sin(Math.toRadians(a))*r*k).toFloat(),c.y-(cos(Math.toRadians(a))*r*k).toFloat())
  bearing?.let{b->val tip=point(b,0.8f);val left=point(b-155,0.27f);val right=point(b+155,0.27f);drawPath(Path().apply{moveTo(tip.x,tip.y);lineTo(left.x,left.y);lineTo(c.x,c.y);lineTo(right.x,right.y);close()},accent)}
  course?.let{drawLine(ink,c,point(it,0.95f),3.dp.toPx())}
