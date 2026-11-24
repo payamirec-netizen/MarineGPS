@@ -3,6 +3,8 @@ on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-24.04
+    env:
+      MARINE_KEYSTORE_PATH: ${{ runner.temp }}/marinegps-signing.jks
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -24,9 +26,11 @@ jobs:
             exit 1
           fi
           mkdir -p "$HOME/.android"
-          printf '%s' "$MARINE_KEY" | base64 --decode > "$HOME/.android/debug.keystore"
-          chmod 600 "$HOME/.android/debug.keystore"
-          keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
+          printf '%s' "$MARINE_KEY" | base64 --decode > "$MARINE_KEYSTORE_PATH"
+          chmod 600 "$MARINE_KEYSTORE_PATH"
+          keytool -list -keystore "$MARINE_KEYSTORE_PATH" -storepass android -alias androiddebugkey >/dev/null
+          actual=$(keytool -exportcert -keystore "$MARINE_KEYSTORE_PATH" -storepass android -alias androiddebugkey | sha256sum | cut -d" " -f1)
+          test "$actual" = "8280d01969ce8128fdb5940eea83010ec69385e9fdb6dc6ecfdeed07974106c9"
       - name: Build APK with retry on rate limits
         shell: bash
         run: |
@@ -40,7 +44,16 @@ jobs:
             fi
             sleep $((attempt * 60))
           done
+      - name: Verify APK signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk" | tee signing-report.txt
+          grep -Fxi 'Signer #1 certificate SHA-256 digest: 8280d01969ce8128fdb5940eea83010ec69385e9fdb6dc6ecfdeed07974106c9' signing-report.txt
       - uses: actions/upload-artifact@v4
         with:
           name: MarineGPS-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            signing-report.txt

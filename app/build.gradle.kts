@@ -3,6 +3,15 @@ android {
  namespace = "com.marinegps.app"
  compileSdk = 35
  defaultConfig { applicationId = "com.marinegps.app"; minSdk = 26; targetSdk = 35; versionCode = 4; versionName = "0.2.2" }
+ signingConfigs {
+  getByName("debug") {
+   storeFile = file(System.getenv("MARINE_KEYSTORE_PATH") ?: "${System.getProperty("user.home")}/.android/debug.keystore")
+   storePassword = "android"
+   keyAlias = "androiddebugkey"
+   keyPassword = "android"
+  }
+ }
+ buildTypes { getByName("debug") { signingConfig = signingConfigs.getByName("debug") } }
  buildFeatures { compose = true }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
 }
