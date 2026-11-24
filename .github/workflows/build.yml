@@ -36,7 +36,7 @@ jobs:
         run: |
           set -o pipefail
           for attempt in 1 2 3 4; do
-            if gradle :app:assembleDebug --stacktrace --max-workers=2 2>&1 | tee build.log; then
+            if gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace --max-workers=2 2>&1 | tee build.log; then
               exit 0
             fi
             if ! grep -Eq '429|Too Many Requests' build.log || [ "$attempt" -eq 4 ]; then

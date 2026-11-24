@@ -33,7 +33,7 @@ private fun band(s:Satellite):String {
  else->"Other"
  }
 }
-private fun coordinate(v:Double,lat:Boolean,format:String):String {
+internal fun coordinate(v:Double,lat:Boolean,format:String):String {
  if(format=="DD")return number(v,6)+"°"
  val scale=if(format=="DDM")600000L else 360000L
  val total=(abs(v)*scale).roundToLong();val d=total/scale;val rem=total%scale;val m=if(format=="DDM")rem/10000.0 else rem/6000.0
@@ -45,6 +45,7 @@ private fun coordinate(v:Double,lat:Boolean,format:String):String {
  Canvas(Modifier.size(24.dp)){
  val u=size.width/24;fun pt(x:Int,y:Int)=Offset(x*u,y*u)
  when(i){
+ 4->{drawCircle(color,6*u,pt(12,9),style=Stroke(2*u));drawLine(color,pt(7,13),pt(12,22),2*u);drawLine(color,pt(17,13),pt(12,22),2*u)}
  0->{drawCircle(color,9*u,style=Stroke(2*u));drawLine(color,pt(12,12),pt(17,7),2*u)}
  1->{for(j in 0..3)drawLine(color,pt(4+j*5,20),pt(4+j*5,14-j*3),3*u)}
  2->{drawCircle(color,9*u,style=Stroke(2*u));drawLine(color,pt(2,12),pt(22,12),u);drawLine(color,pt(12,2),pt(12,22),u)}
@@ -62,7 +63,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  var units by remember{mutableStateOf(prefs.getString("speed","kn")?:"kn")}
  var distance by remember{mutableStateOf(prefs.getString("distance","NM")?:"NM")}
  var usedOnly by rememberSaveable{mutableStateOf(false)}
- val labels=listOf("Dashboard","Satellites","Sky View","Settings")
+ val labels=listOf("Dashboard","Satellites","Sky View","Settings","Waypoints")
  var appearance by remember{mutableStateOf(prefs.getString("appearance","System")?:"System")}
  var format by remember{mutableStateOf(prefs.getString("coordinates","DD")?:"DD")}
  val dark=when(appearance){"Dark"->true;"Light"->false;else->isSystemInDarkTheme()}
@@ -76,10 +77,11 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  0->MarineDashboard(s,units,format,request,settings)
  1->SignalScreen(s,usedOnly,{usedOnly=it})
  2->SkyScreen(s,usedOnly,{usedOnly=it})
+ 4->WaypointScreen(s,distance,format)
  3->LazyColumn(verticalArrangement=Arrangement.spacedBy(4.dp)){
  item{Text("Speed units",style=MaterialTheme.typography.titleMedium)}
  items(listOf("kn","km/h","m/s")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=units==u,onClick={units=u;prefs.edit().putString("speed",u).apply()});Text(u)}}
- item{Text("Distance units (future navigation)",style=MaterialTheme.typography.titleMedium)}
+ item{Text("Distance units",style=MaterialTheme.typography.titleMedium)}
  items(listOf("NM","km","mi")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=distance==u,onClick={distance=u;prefs.edit().putString("distance",u).apply()});Text(u)}}
  item{Text("Appearance",style=MaterialTheme.typography.titleMedium)}
  items(listOf("System","Light","Dark")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=appearance==u,onClick={appearance=u;prefs.edit().putString("appearance",u).apply()});Text(u)}}
@@ -87,7 +89,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  items(listOf("DD","DDM","DMS")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=format==u,onClick={format=u;prefs.edit().putString("coordinates",u).apply()});Text(u)}}
  item{Button(onClick=request){Text("Location permission")}}
  item{OutlinedButton(onClick=settings){Text("Android location settings")}}
- item{Text("Version 0.2.3 • Offline GNSS")}
+ item{Text("Version 0.3.0 • Offline GNSS")}
  item{Text("Experimental navigation aid. Not a certified marine instrument.")}
  }
  }
@@ -114,7 +116,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  }
 }
 @Composable private fun DataCard(label:String,value:String){Card(Modifier.fillMaxWidth()){Column(Modifier.padding(8.dp)){Text(label,style=MaterialTheme.typography.bodySmall);Text(value,fontSize=20.sp)}}}
-@Composable private fun Filter(usedOnly:Boolean,change:(Boolean)->Unit){Row(verticalAlignment=Alignment.CenterVertically){Text("Used in fix only",Modifier.weight(1f));Switch(checked=usedOnly,onCheckedChange=change)}}
+@Composable private fun Filter(usedOnly:Boolean,change:(Boolean)->Unit){Row(verticalAlignment=Alignment.CenterVertically){Text("Used satellites only",Modifier.weight(1f));Switch(checked=usedOnly,onCheckedChange=change)}}
 @Composable private fun SignalScreen(s:GnssState,usedOnly:Boolean,change:(Boolean)->Unit){
  val rows=groups(s).filter{!usedOnly||it.any{v->v.used}}.sortedByDescending{g->g.maxOf{it.cn0}}
  Filter(usedOnly,change)

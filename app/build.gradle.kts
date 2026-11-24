@@ -1,8 +1,8 @@
-plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id("org.jetbrains.kotlin.plugin.compose") }
+plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id("org.jetbrains.kotlin.plugin.compose"); id("com.google.devtools.ksp") }
 android {
  namespace = "com.marinegps.app"
  compileSdk = 35
- defaultConfig { applicationId = "com.marinegps.app"; minSdk = 26; targetSdk = 35; versionCode = 5; versionName = "0.2.3" }
+ defaultConfig { applicationId = "com.marinegps.app"; minSdk = 26; targetSdk = 35; versionCode = 6; versionName = "0.3.0" }
  signingConfigs {
   getByName("debug") {
    storeFile = file(System.getenv("MARINE_KEYSTORE_PATH") ?: "${System.getProperty("user.home")}/.android/debug.keystore")
@@ -17,6 +17,10 @@ android {
 }
 kotlin { jvmToolchain(17) }
 dependencies {
+ implementation("androidx.room:room-runtime:2.6.1")
+ implementation("androidx.room:room-ktx:2.6.1")
+ ksp("androidx.room:room-compiler:2.6.1")
+ testImplementation("junit:junit:4.13.2")
  implementation(platform("androidx.compose:compose-bom:2024.12.01"))
  implementation("androidx.activity:activity-compose:1.10.0")
  implementation("androidx.compose.material3:material3")
