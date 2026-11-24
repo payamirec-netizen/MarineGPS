@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
  namespace = "com.marinegps.app"
  compileSdk = 35
- defaultConfig { applicationId = "com.marinegps.app"; minSdk = 26; targetSdk = 35; versionCode = 4; versionName = "0.2.2" }
+ defaultConfig { applicationId = "com.marinegps.app"; minSdk = 26; targetSdk = 35; versionCode = 5; versionName = "0.2.3" }
  signingConfigs {
   getByName("debug") {
    storeFile = file(System.getenv("MARINE_KEYSTORE_PATH") ?: "${System.getProperty("user.home")}/.android/debug.keystore")

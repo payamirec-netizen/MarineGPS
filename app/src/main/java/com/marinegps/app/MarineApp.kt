@@ -87,7 +87,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  items(listOf("DD","DDM","DMS")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=format==u,onClick={format=u;prefs.edit().putString("coordinates",u).apply()});Text(u)}}
  item{Button(onClick=request){Text("Location permission")}}
  item{OutlinedButton(onClick=settings){Text("Android location settings")}}
- item{Text("Version 0.2.2 • Offline GNSS")}
+ item{Text("Version 0.2.3 • Offline GNSS")}
  item{Text("Experimental navigation aid. Not a certified marine instrument.")}
  }
  }
