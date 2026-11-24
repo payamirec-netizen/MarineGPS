@@ -15,6 +15,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Restore permanent signing key
+        env:
+          MARINE_KEY: ${{ secrets.MARINE_SIGNING_KEY }}
+        run: |
+          if [ -z "$MARINE_KEY" ]; then
+            echo "::error::Configure MARINE_SIGNING_KEY repository secret before building"
+            exit 1
+          fi
+          mkdir -p "$HOME/.android"
+          printf '%s' "$MARINE_KEY" | base64 --decode > "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
+          keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
       - name: Build APK with retry on rate limits
         shell: bash
         run: |
