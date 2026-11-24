@@ -28,7 +28,7 @@ class MainActivity:ComponentActivity(){
  val state by model.state.collectAsStateWithLifecycle()
  val dark=androidx.compose.foundation.isSystemInDarkTheme()
  MaterialTheme(colorScheme=if(dark)darkColorScheme(primary=Color(0xFF65DBC0))else lightColorScheme(primary=Color(0xFF006B59))){
- Dashboard(state,{permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))},{startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))})
+ MarineApp(state,{permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))},{startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))})
  }
  }
  }
