@@ -60,6 +60,10 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  val context=LocalContext.current
  val prefs=remember{context.getSharedPreferences("marine_settings",0)}
  var tab by rememberSaveable{mutableIntStateOf(0)}
+ var targetId by rememberSaveable{mutableStateOf<Long?>(null)}
+ val dao=remember{WaypointDb.get(context).points()}
+ val points by remember(dao){dao.observe()}.collectAsState(initial=emptyList())
+ val target=points.firstOrNull{it.id==targetId}
  var units by remember{mutableStateOf(prefs.getString("speed","kn")?:"kn")}
  var distance by remember{mutableStateOf(prefs.getString("distance","NM")?:"NM")}
  var usedOnly by rememberSaveable{mutableStateOf(false)}
@@ -71,13 +75,13 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  Scaffold(bottomBar={NavigationBar{labels.forEachIndexed{i,label->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={NavGlyph(i)},label={Text(label,fontSize=10.sp)})}}}){padding->
  Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp)){
  Text("Marine GPS",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(top=12.dp))
- Text(labels[tab]+" • Native GNSS",color=MaterialTheme.colorScheme.primary)
+ Text((if(tab==4&&target!=null)"Navigation" else labels[tab])+" • Native GNSS",color=MaterialTheme.colorScheme.primary)
  Spacer(Modifier.height(12.dp))
  when(tab){
  0->MarineDashboard(s,units,format,request,settings)
  1->SignalScreen(s,usedOnly,{usedOnly=it})
  2->SkyScreen(s,usedOnly,{usedOnly=it})
- 4->WaypointScreen(s,distance,format)
+ 4->if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units){targetId=null} else WaypointScreen(s,distance,format){targetId=it.id}
  3->LazyColumn(verticalArrangement=Arrangement.spacedBy(4.dp)){
  item{Text("Speed units",style=MaterialTheme.typography.titleMedium)}
  items(listOf("kn","km/h","m/s")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=units==u,onClick={units=u;prefs.edit().putString("speed",u).apply()});Text(u)}}
@@ -89,7 +93,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  items(listOf("DD","DDM","DMS")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=format==u,onClick={format=u;prefs.edit().putString("coordinates",u).apply()});Text(u)}}
  item{Button(onClick=request){Text("Location permission")}}
  item{OutlinedButton(onClick=settings){Text("Android location settings")}}
- item{Text("Version 0.3.0 • Offline GNSS")}
+ item{Text("Version 0.4.0 • Offline GNSS")}
  item{Text("Experimental navigation aid. Not a certified marine instrument.")}
  }
  }
