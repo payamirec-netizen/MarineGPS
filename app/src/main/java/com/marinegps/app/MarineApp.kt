@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Path
+import java.util.Locale
+
 private fun groups(s:GnssState)=s.satellites.groupBy{it.system to it.id}.values.toList()
 private fun band(s:Satellite):String {
  val f=s.frequency?.div(1e6)?:return "Unknown band"
@@ -49,7 +51,6 @@ private fun coordinate(v:Double,lat:Boolean,format:String):String {
  }
  }
 }
-import java.util.Locale
 
 private fun number(v:Double,n:Int=1)=String.format(Locale.US,"%."+n+"f",v)
 private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5->Color(0xFFEAB308);6->Color(0xFF26A69A);4->Color(0xFFAB78E8);else->Color(0xFF9CA3AF)}
