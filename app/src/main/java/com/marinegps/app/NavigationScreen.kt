@@ -10,6 +10,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import kotlin.math.*
 
 internal fun distanceLabel(m:Double,unit:String)=if(m<1000)fmtPoint(m,0)+" m" else fmtPoint(m/when(unit){"NM"->1852.0;"mi"->1609.344;else->1000.0},2)+" "+unit
@@ -31,42 +37,56 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  val speed=fix?.takeIf{it.hasSpeed()}?.speed?.toDouble()
  val course=fix?.takeIf{it.hasBearing()&&it.hasSpeed()&&it.speed>=0.5f&&(!it.hasBearingAccuracy()||it.bearingAccuracyDegrees<=30f)}?.bearing?.toDouble()
  val eta=m?.let{etaSeconds(it.meters,speed,course,bearing)}
+ val context=LocalContext.current
+ val prefs=remember(context){context.getSharedPreferences("marine_settings",0)}
+ var headingUp by rememberSaveable{mutableStateOf(prefs.getBoolean("heading_up",true))}
+ var keepOn by rememberSaveable{mutableStateOf(prefs.getBoolean("navigation_keep_on",true))}
+ KeepNavigationScreenOn(keepOn)
+ val heading=rememberTrueHeading(fix,headingUp)
+ val reference=if(headingUp)heading else 0.0
+ val relative=bearing?.let{b->reference?.let{relativeHeading(b,it)}}
  val ink=MaterialTheme.colorScheme.onSurface
  val accent=MaterialTheme.colorScheme.primary
  val outline=MaterialTheme.colorScheme.outline
- LazyColumn(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(bottom=16.dp)){
- item{Text("Navigating to",style=MaterialTheme.typography.labelLarge);Text(target.name,style=MaterialTheme.typography.headlineSmall);Text(target.category)}
+ Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(4.dp)){
+ Text("Navigating to • "+target.name,style=MaterialTheme.typography.titleMedium,maxLines=2)
+ Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=headingUp,onClick={headingUp=true;prefs.edit().putBoolean("heading_up",true).apply()},label={Text("Heading-up")});FilterChip(selected=!headingUp,onClick={headingUp=false;prefs.edit().putBoolean("heading_up",false).apply()},label={Text("North-up")})}
+ LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)){
  if(target.category=="Hazard")item{Text("Hazard waypoint — do not approach blindly",color=MaterialTheme.colorScheme.error)}
- item{Text(if(fix==null)"GPS unavailable — navigation paused" else if(bearing==null)"Direction uncertain — near target or insufficient accuracy" else "GPS FIX • North-up",color=if(bearing==null)MaterialTheme.colorScheme.error else accent)}
- item{Box(Modifier.fillMaxWidth().height(260.dp)){
+ item{Text(if(fix==null)"GPS unavailable — navigation paused" else if(bearing==null)"Direction uncertain — near target or insufficient accuracy" else if(headingUp&&heading==null)"Compass unavailable — hold phone flat, calibrate away from metal or select North-up" else "GPS FIX • "+if(headingUp)"Heading-up" else "North-up",color=if(bearing==null||reference==null)MaterialTheme.colorScheme.error else accent)}
+ item{Box(Modifier.fillMaxWidth().height(210.dp)){
  Canvas(Modifier.fillMaxSize().padding(24.dp)){
  val r=size.minDimension/2;val c=center
  drawCircle(outline,r,c,style=Stroke(1.dp.toPx()))
  for(i in 0 until 36){
- val a=i*PI/18
+ val a=i*PI/18-Math.toRadians(reference?:0.0)
  val d=if(i%3==0)0.86f else 0.94f
  val inner=Offset(c.x+(sin(a)*r*d).toFloat(),c.y-(cos(a)*r*d).toFloat())
  val outer=Offset(c.x+(sin(a)*r).toFloat(),c.y-(cos(a)*r).toFloat())
  drawLine(outline,inner,outer,1.dp.toPx())
  }
  fun point(a:Double,k:Float)=Offset(c.x+(sin(Math.toRadians(a))*r*k).toFloat(),c.y-(cos(Math.toRadians(a))*r*k).toFloat())
- bearing?.let{b->val tip=point(b,0.8f);val left=point(b-155,0.27f);val right=point(b+155,0.27f);drawPath(Path().apply{moveTo(tip.x,tip.y);lineTo(left.x,left.y);lineTo(c.x,c.y);lineTo(right.x,right.y);close()},accent)}
- course?.let{drawLine(ink,c,point(it,0.95f),3.dp.toPx())}
+ relative?.let{b->val tip=point(b,0.8f);val left=point(b-155,0.27f);val right=point(b+155,0.27f);drawPath(Path().apply{moveTo(tip.x,tip.y);lineTo(left.x,left.y);lineTo(c.x,c.y);lineTo(right.x,right.y);close()},accent)}
+ if(reference!=null)course?.let{drawLine(ink,c,point(relativeHeading(it,reference),0.95f),3.dp.toPx())}
+ if(reference!=null){val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{color=ink.toArgb();textSize=14.dp.toPx();textAlign=android.graphics.Paint.Align.CENTER};listOf(0.0 to "N",90.0 to "E",180.0 to "S",270.0 to "W").forEach{(a,label)->val p=point(relativeHeading(a,reference),1.12f);drawContext.canvas.nativeCanvas.drawText(label,p.x,p.y-(paint.ascent()+paint.descent())/2,paint)}}
  drawCircle(ink,3.dp.toPx(),c)
  }
- Text("N",Modifier.align(Alignment.TopCenter));Text("S",Modifier.align(Alignment.BottomCenter));Text("W",Modifier.align(Alignment.CenterStart));Text("E",Modifier.align(Alignment.CenterEnd))
+ if(relative==null)Text(if(bearing==null)"Direction uncertain" else "Compass unavailable",Modifier.align(Alignment.Center),style=MaterialTheme.typography.bodySmall)
  }}
- item{Text("Green: target bearing • White: GPS course. Not phone heading.")}
+ item{Text("Green: target • White: GPS course. Hold phone flat.")}
  item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
  Text("Distance: "+(m?.let{distanceLabel(it.meters,unit)}?:"—"),style=MaterialTheme.typography.headlineSmall)
  Text("Bearing true: "+(bearing?.let{fmtPoint(it,1)+"°"}?:"—"))
  Text("SOG: "+(speed?.let{fmtPoint(it*when(speedUnit){"kn"->3600.0/1852;"km/h"->3.6;else->1.0},1)+" "+speedUnit}?:"—"))
+ Text("Phone heading true: "+(heading?.let{fmtPoint(it,1)+"°"}?:"—"))
  Text("COG true: "+(course?.let{fmtPoint(it,1)+"°"}?:"—"))
  Text("ETA (current closing speed): "+(eta?.let{fmtPoint(it/60,1)+" min"}?:"—"))
  Text("GPS accuracy: "+(accuracy?.let{"± "+fmtPoint(it.toDouble(),1)+" m"}?:"—"))
  if(m!=null&&m.meters<=max(20.0,(accuracy?:0f).toDouble()+(target.accuracy?:0f)))Text("Near target — verify position visually")
  }}}
  item{Text("Direct bearing only. No charts, depth or obstacle avoidance. Keep a separate navigation aid.")}
- item{OutlinedButton(onClick=stop,modifier=Modifier.fillMaxWidth()){Text("Stop navigation")}}
+ item{Row(verticalAlignment=Alignment.CenterVertically){Text("Keep screen on",Modifier.weight(1f));Switch(checked=keepOn,onCheckedChange={keepOn=it;prefs.edit().putBoolean("navigation_keep_on",it).apply()})}}
+ }
+ OutlinedButton(onClick=stop,modifier=Modifier.fillMaxWidth()){Text("Stop navigation")}
  }
 }
