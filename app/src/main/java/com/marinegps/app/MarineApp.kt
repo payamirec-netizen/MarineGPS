@@ -45,6 +45,7 @@ internal fun coordinate(v:Double,lat:Boolean,format:String):String {
  Canvas(Modifier.size(24.dp)){
  val u=size.width/24;fun pt(x:Int,y:Int)=Offset(x*u,y*u)
  when(i){
+ 5->{drawLine(color,pt(4,19),pt(10,5),2*u);drawLine(color,pt(10,5),pt(20,16),2*u);drawCircle(color,2*u,pt(20,16))}
  4->{drawCircle(color,6*u,pt(12,9),style=Stroke(2*u));drawLine(color,pt(7,13),pt(12,22),2*u);drawLine(color,pt(17,13),pt(12,22),2*u)}
  0->{drawCircle(color,9*u,style=Stroke(2*u));drawLine(color,pt(12,12),pt(17,7),2*u)}
  1->{for(j in 0..3)drawLine(color,pt(4+j*5,20),pt(4+j*5,14-j*3),3*u)}
@@ -67,7 +68,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  var units by remember{mutableStateOf(prefs.getString("speed","kn")?:"kn")}
  var distance by remember{mutableStateOf(prefs.getString("distance","NM")?:"NM")}
  var usedOnly by rememberSaveable{mutableStateOf(false)}
- val labels=listOf("Dashboard","Satellites","Sky View","Settings","Waypoints")
+ val labels=listOf("Dashboard","Satellites","Sky View","Settings","Waypoints","Tracks")
  var appearance by remember{mutableStateOf(prefs.getString("appearance","System")?:"System")}
  var format by remember{mutableStateOf(prefs.getString("coordinates","DD")?:"DD")}
  val dark=when(appearance){"Dark"->true;"Light"->false;else->isSystemInDarkTheme()}
@@ -78,6 +79,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  Text((if(tab==4&&target!=null)"Navigation" else labels[tab])+" • Native GNSS",color=MaterialTheme.colorScheme.primary)
  Spacer(Modifier.height(12.dp))
  when(tab){
+ 5->TrackScreen(request)
  0->MarineDashboard(s,units,format,request,settings)
  1->SignalScreen(s,usedOnly,{usedOnly=it})
  2->SkyScreen(s,usedOnly,{usedOnly=it})
@@ -93,7 +95,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  items(listOf("DD","DDM","DMS")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=format==u,onClick={format=u;prefs.edit().putString("coordinates",u).apply()});Text(u)}}
  item{Button(onClick=request){Text("Location permission")}}
  item{OutlinedButton(onClick=settings){Text("Android location settings")}}
- item{Text("Version 0.4.1 • Offline GNSS")}
+ item{Text("Version 0.5.0 • Offline GNSS")}
  item{Text("Experimental navigation aid. Not a certified marine instrument.")}
  }
  }
