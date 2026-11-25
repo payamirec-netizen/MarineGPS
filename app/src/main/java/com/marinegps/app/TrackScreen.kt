@@ -16,9 +16,13 @@ import androidx.compose.ui.unit.dp
 import java.util.Locale
 import java.text.DateFormat
 import java.util.Date
-import kotlin.math.cos
+import kotlin.math.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.Alignment
 
-@Composable fun TrackScreen(request:()->Unit){
+@Composable fun TrackScreen(request:()->Unit,unit:String,speedUnit:String){
  val context=LocalContext.current
  val dao=remember{TrackDb.get(context).tracks()}
  val tracks by remember{dao.observe()}.collectAsState(initial=emptyList())
@@ -40,30 +44,42 @@ import kotlin.math.cos
  OutlinedButton(onClick={command("stop")}){Text("Stop & save")}
  }
  };if(error.isNotEmpty())Text(error,color=MaterialTheme.colorScheme.error)}
- if(active!=null)item{Text("If recording was interrupted, tap Resume to reconnect.");OutlinedButton(onClick={command("resume")}){Text("Reconnect GPS")}}
- if(detail!=null)item{TrackDetail(detail,dao)}
+ if(active?.state=="recording")item{var recovery by remember{mutableStateOf(false)};TextButton(onClick={recovery=!recovery}){Text("Recording help")};if(recovery){Text("If recording stops updating, reconnect GPS.");OutlinedButton(onClick={command("resume")}){Text("Reconnect GPS")}}}
+ if(detail!=null)item{TrackDetail(detail,dao,unit,speedUnit)}
  item{Text("Saved tracks",style=MaterialTheme.typography.titleMedium)}
- items(tracks.filter{it.ended!=null},key={it.id}){t->OutlinedButton(onClick={selected=t.id},modifier=Modifier.fillMaxWidth()){Text(DateFormat.getDateTimeInstance().format(Date(t.started))+" • "+trackNumber(t.meters/1852)+" NM")}}
+ items(tracks.filter{it.ended!=null},key={it.id}){t->OutlinedButton(onClick={selected=t.id},modifier=Modifier.fillMaxWidth()){Text(DateFormat.getDateTimeInstance().format(Date(t.started))+" • "+distanceLabel(t.meters,unit))}}
  item{Text("Track sketch only — not a nautical chart. Keep independent navigation equipment.")}
  }
 }
-private fun trackNumber(v:Double)=String.format(Locale.US,"%.2f",v)
-@Composable private fun TrackDetail(t:Track,dao:TrackDao){
+internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0;val base=10.0.pow(floor(log10(max)));return base*listOf(1.0,2.0,5.0).last{it<=max/base}}
+@Composable private fun TrackDetail(t:Track,dao:TrackDao,unit:String,speedUnit:String){
  val points by remember(t.id){dao.points(t.id)}.collectAsState(initial=emptyList())
  Text("Distance: "+trackNumber(t.meters/1852)+" NM")
  Text("Recorded time: "+t.activeMillis/60000+" min "+t.activeMillis/1000%60+" s")
- Text("Average: "+trackNumber(if(t.activeMillis>0)t.meters/t.activeMillis*1000*3600/1852 else 0.0)+" kn • Max: "+trackNumber(t.maxSpeed*3600/1852)+" kn")
+ Text("Average: "+speedLabel(if(t.activeMillis>0)t.meters/t.activeMillis*1000 else 0.0,speedUnit)+" • Max: "+speedLabel(t.maxSpeed,speedUnit))
  Text("Points: "+points.size)
  val color=MaterialTheme.colorScheme.primary
+ val ink=MaterialTheme.colorScheme.onSurface
+ val grid=MaterialTheme.colorScheme.outline
+ Text("North-up • Green: start • Orange: end/current",style=MaterialTheme.typography.bodySmall)
  Canvas(Modifier.fillMaxWidth().height(220.dp)){
+ for(i in 1..4){val x=size.width*i/5;val y=size.height*i/5;drawLine(grid.copy(alpha=0.15f),Offset(x,0f),Offset(x,size.height));drawLine(grid.copy(alpha=0.15f),Offset(0f,y),Offset(size.width,y))}
  if(points.isNotEmpty()){
  val origin=points.first()
  val xy=points.map{p-> val delta=((p.lon-origin.lon+540)%360)-180;delta*cos(Math.toRadians(origin.lat)) to p.lat-origin.lat}
  val minX=xy.minOf{it.first};val minY=xy.minOf{it.second}
  val scale=minOf((size.width-24).coerceAtLeast(1f)/(xy.maxOf{it.first}-minX).coerceAtLeast(0.000001),(size.height-24).coerceAtLeast(1f)/(xy.maxOf{it.second}-minY).coerceAtLeast(0.000001))
- val pos=xy.map{Offset(12+((it.first-minX)*scale).toFloat(),size.height-12-((it.second-minY)*scale).toFloat())}
+ val pos=xy.map{Offset(center.x+((it.first-(minX+xy.maxOf{p->p.first})/2)*scale).toFloat(),center.y-((it.second-(minY+xy.maxOf{p->p.second})/2)*scale).toFloat())}
  for(i in 1 until pos.size)if(points[i].segment==points[i-1].segment)drawLine(color,pos[i-1],pos[i],3f)
- drawCircle(color,5f,pos.first());drawCircle(color,7f,pos.last())
+ drawCircle(Color(0xFF22A65A),5.dp.toPx(),pos.first());drawCircle(Color(0xFFFF9800),4.dp.toPx(),pos.last())
+ val metersPerPixel=111195.0/scale
+ val maxMeters=size.width*0.25*metersPerPixel
+ val bar=niceScale(maxMeters)
+ val px=(bar/metersPerPixel).toFloat()
+ val paint=android.graphics.Paint(3).apply{this.color=ink.toArgb();textSize=11.dp.toPx()}
+ val y=size.height-8.dp.toPx();val x=8.dp.toPx()
+ drawLine(ink,Offset(x,y),Offset(x+px,y),2.dp.toPx());drawContext.canvas.nativeCanvas.drawText(distanceLabel(bar,unit),x,y-5.dp.toPx(),paint)
+ drawContext.canvas.nativeCanvas.drawText("N ↑",size.width-30.dp.toPx(),15.dp.toPx(),paint)
  }
  }
 }
