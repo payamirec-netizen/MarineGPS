@@ -51,10 +51,10 @@ import androidx.compose.ui.Alignment
  item{Text("Track sketch only — not a nautical chart. Keep independent navigation equipment.")}
  }
 }
-internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0;val base=10.0.pow(floor(log10(max)));return base*listOf(1.0,2.0,5.0).last{it<=max/base}}
+internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0;val base=10.0.pow(floor(log10(max)));return base*(listOf(1.0,2.0,5.0).lastOrNull{it<=max/base}?:0.5)}
 @Composable private fun TrackDetail(t:Track,dao:TrackDao,unit:String,speedUnit:String){
  val points by remember(t.id){dao.points(t.id)}.collectAsState(initial=emptyList())
- Text("Distance: "+trackNumber(t.meters/1852)+" NM")
+ Text("Distance: "+distanceLabel(t.meters,unit),style=MaterialTheme.typography.headlineSmall)
  Text("Recorded time: "+t.activeMillis/60000+" min "+t.activeMillis/1000%60+" s")
  Text("Average: "+speedLabel(if(t.activeMillis>0)t.meters/t.activeMillis*1000 else 0.0,speedUnit)+" • Max: "+speedLabel(t.maxSpeed,speedUnit))
  Text("Points: "+points.size)
@@ -64,11 +64,11 @@ internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0
  Text("North-up • Green: start • Orange: end/current",style=MaterialTheme.typography.bodySmall)
  Canvas(Modifier.fillMaxWidth().height(220.dp)){
  for(i in 1..4){val x=size.width*i/5;val y=size.height*i/5;drawLine(grid.copy(alpha=0.15f),Offset(x,0f),Offset(x,size.height));drawLine(grid.copy(alpha=0.15f),Offset(0f,y),Offset(size.width,y))}
- if(points.isNotEmpty()){
+ if(points.isNotEmpty()&&size.width>48.dp.toPx()&&size.height>48.dp.toPx()){
  val origin=points.first()
  val xy=points.map{p-> val delta=((p.lon-origin.lon+540)%360)-180;delta*cos(Math.toRadians(origin.lat)) to p.lat-origin.lat}
  val minX=xy.minOf{it.first};val minY=xy.minOf{it.second}
- val scale=minOf((size.width-24).coerceAtLeast(1f)/(xy.maxOf{it.first}-minX).coerceAtLeast(0.000001),(size.height-24).coerceAtLeast(1f)/(xy.maxOf{it.second}-minY).coerceAtLeast(0.000001))
+ val scale=minOf((size.width-48.dp.toPx()).coerceAtLeast(1f)/(xy.maxOf{it.first}-minX).coerceAtLeast(0.000001),(size.height-48.dp.toPx()).coerceAtLeast(1f)/(xy.maxOf{it.second}-minY).coerceAtLeast(0.000001))
  val pos=xy.map{Offset(center.x+((it.first-(minX+xy.maxOf{p->p.first})/2)*scale).toFloat(),center.y-((it.second-(minY+xy.maxOf{p->p.second})/2)*scale).toFloat())}
  for(i in 1 until pos.size)if(points[i].segment==points[i-1].segment)drawLine(color,pos[i-1],pos[i],3f)
  drawCircle(Color(0xFF22A65A),5.dp.toPx(),pos.first());drawCircle(Color(0xFFFF9800),4.dp.toPx(),pos.last())
@@ -78,7 +78,7 @@ internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0
  val px=(bar/metersPerPixel).toFloat()
  val paint=android.graphics.Paint(3).apply{this.color=ink.toArgb();textSize=11.dp.toPx()}
  val y=size.height-8.dp.toPx();val x=8.dp.toPx()
- drawLine(ink,Offset(x,y),Offset(x+px,y),2.dp.toPx());drawContext.canvas.nativeCanvas.drawText(distanceLabel(bar,unit),x,y-5.dp.toPx(),paint)
+ drawLine(ink,Offset(x,y),Offset(x+px,y),2.dp.toPx());drawContext.canvas.nativeCanvas.drawText(if(bar<1)fmtPoint(bar,2)+" m" else distanceLabel(bar,unit),x,y-5.dp.toPx(),paint)
  drawContext.canvas.nativeCanvas.drawText("N ↑",size.width-30.dp.toPx(),15.dp.toPx(),paint)
  }
  }

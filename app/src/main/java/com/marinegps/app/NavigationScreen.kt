@@ -59,7 +59,7 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  if(near)Text("Near destination — verify position visually",color=accent,style=MaterialTheme.typography.bodyMedium)
  LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)){
  if(target.category=="Hazard")item{Text("Hazard waypoint — do not approach blindly",color=MaterialTheme.colorScheme.error)}
- item{Text(if(fix==null)"GPS unavailable — navigation paused" else if(bearing==null)"Direction uncertain — near target or insufficient accuracy" else if(headingUp&&heading==null)"Compass unavailable — hold phone flat, calibrate away from metal or select North-up" else "GPS FIX • "+if(headingUp)"Heading-up" else "North-up",color=if(bearing==null||reference==null)MaterialTheme.colorScheme.error else accent)}
+ item{Text(if(fix==null)"GPS unavailable — navigation paused" else if(bearing==null&&near)"Near destination — direction uncertain" else if(bearing==null)"Direction uncertain — near target or insufficient accuracy" else if(headingUp&&heading==null)"Compass unavailable — hold phone flat, calibrate away from metal or select North-up" else "GPS FIX • "+if(headingUp)"Heading-up" else "North-up",color=if(bearing==null||reference==null)MaterialTheme.colorScheme.error else accent)}
  item{Box(Modifier.fillMaxWidth().height(210.dp)){
  Canvas(Modifier.fillMaxSize().padding(24.dp)){
  val r=size.minDimension/2;val c=center
@@ -73,11 +73,11 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  }
  fun point(a:Double,k:Float)=Offset(c.x+(sin(Math.toRadians(a))*r*k).toFloat(),c.y-(cos(Math.toRadians(a))*r*k).toFloat())
  relative?.let{b->val tip=point(b,0.8f);val left=point(b-155,0.27f);val right=point(b+155,0.27f);drawPath(Path().apply{moveTo(tip.x,tip.y);lineTo(left.x,left.y);lineTo(c.x,c.y);lineTo(right.x,right.y);close()},accent)}
- if(reference!=null)course?.let{drawLine(ink,c,point(relativeHeading(it,reference),0.95f),3.dp.toPx())}
+ if(reference!=null&&relative!=null)course?.let{drawLine(ink,c,point(relativeHeading(it,reference),0.95f),3.dp.toPx())}
  if(reference!=null){val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{color=ink.toArgb();textSize=14.dp.toPx();textAlign=android.graphics.Paint.Align.CENTER};listOf(0.0 to "N",90.0 to "E",180.0 to "S",270.0 to "W").forEach{(a,label)->val p=point(relativeHeading(a,reference),1.12f);drawContext.canvas.nativeCanvas.drawText(label,p.x,p.y-(paint.ascent()+paint.descent())/2,paint)}}
- if(relative!=null||course!=null)drawCircle(ink,3.dp.toPx(),c)
+ if(relative!=null)drawCircle(ink,3.dp.toPx(),c)
  }
- if(relative==null)Text(if(bearing==null)if(near)"Near destination" else "Direction uncertain" else "Compass unavailable",Modifier.align(Alignment.Center),style=MaterialTheme.typography.bodySmall)
+ if(relative==null)Text(if(fix==null)"GPS unavailable" else if(bearing==null)if(near)"Near destination" else "Direction uncertain" else "Compass unavailable",Modifier.align(Alignment.Center),style=MaterialTheme.typography.bodySmall)
  }}
  item{Text("Green: target • White: GPS course. Hold phone flat.")}
  item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
