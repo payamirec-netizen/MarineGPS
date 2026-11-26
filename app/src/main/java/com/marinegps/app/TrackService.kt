@@ -44,13 +44,13 @@ class TrackService:Service(),LocationListener {
  super.onCreate()
  db=TrackDb.get(this)
  manager=getSystemService(LocationManager::class.java)
- getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("tracks","Track recording",NotificationManager.IMPORTANCE_LOW))
+ getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("tracks",translateText("Track recording",appArabic(this)),NotificationManager.IMPORTANCE_LOW))
  scope.launch { while(isActive){delay(5000);events.send{monitor()}} }
  scope.launch { for(event in events){try{event()}catch(e:CancellationException){throw e}catch(e:Exception){android.util.Log.e("TrackService","Recording failed",e);stopSelf();break}} }
  }
  private fun notification(message:String):Notification {
  val open=PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java),PendingIntent.FLAG_IMMUTABLE)
- return Notification.Builder(this,"tracks").setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle("Marine GPS").setContentText(message).setContentIntent(open).setOngoing(true).build()
+ return Notification.Builder(this,"tracks").setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle("Marine GPS").setContentText(translateText(message,appArabic(this))).setContentIntent(open).setOngoing(true).build()
  }
  override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int{
  if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){stopSelf();return START_NOT_STICKY}

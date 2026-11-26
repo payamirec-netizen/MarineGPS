@@ -31,7 +31,7 @@ import androidx.room.withTransaction
  var edit by remember{mutableStateOf<Track?>(null)}
  var delete by remember{mutableStateOf<Track?>(null)}
  var name by remember{mutableStateOf("")}
- val scan=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri->if(uri!=null)scope.launch{try{val p=withContext(Dispatchers.IO){readQr(c,uri)};pending=TransferData(listOf(p),emptyList());message="Review QR waypoint"}catch(e:Exception){message="QR rejected: "+e.message}}}
+ val scan=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri->if(uri!=null)scope.launch{try{val p=withContext(Dispatchers.IO){readQrData(c,uri)};pending=p;message="Review QR waypoint"}catch(e:Exception){message="QR rejected: "+e.message}}}
  val save=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")){uri->
  if(uri!=null)scope.launch{busy=true;try{withContext(Dispatchers.IO){c.contentResolver.openOutputStream(uri)?.use{it.write(output.toByteArray(Charsets.UTF_8))}?:error("Cannot open file")};message="Export saved"}catch(e:Exception){message="Export failed: "+e.message}finally{busy=false}}
  }
@@ -46,15 +46,15 @@ import androidx.room.withTransaction
  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
  TextButton(onClick=back){Text(tr("Back to settings"))}
  Text(tr("Data management"),style=MaterialTheme.typography.headlineSmall)
- Text("Offline • Existing data is retained")
+ Text(tr("Offline • Existing data is retained"))
  for(ext in listOf("gpx","kml","csv","json"))OutlinedButton(enabled=!busy,onClick={export(ext)},modifier=Modifier.fillMaxWidth()){Text("Export "+ext.uppercase())}
  Button(enabled=!busy,onClick={open.launch(arrayOf("*/*"))}){Text(tr("Import GPX / restore JSON"))}
- Text(message)
+ Text(tr(message))
  OutlinedButton(enabled=!busy,onClick={export("gpx",true)}){Text(tr("Share GPX"))}
  OutlinedButton(enabled=!busy,onClick={export("json",true)}){Text(tr("Share backup"))}
  OutlinedButton(enabled=!busy,onClick={scan.launch("image/*")}){Text(tr("Read QR from image"))}
  Text(tr("Share waypoints"))
- waypoints.forEach{w->Row{Text(w.name,Modifier.weight(1f));TextButton(onClick={qr=TransferPoint(w.name,w.latitude,w.longitude,w.notes)}){Text("QR")};TextButton(onClick={val clip=c.getSystemService(android.content.ClipboardManager::class.java);clip.setPrimaryClip(android.content.ClipData.newPlainText(tr("Coordinates"),"${w.latitude}, ${w.longitude}"))}){Text(tr("Copy"))}}}
+ waypoints.forEach{w->Row{Text(w.name,Modifier.weight(1f));TextButton(onClick={qr=TransferPoint(w.name,w.latitude,w.longitude,w.notes)}){Text("QR")};TextButton(onClick={val clip=c.getSystemService(android.content.ClipboardManager::class.java);clip.setPrimaryClip(android.content.ClipData.newPlainText("Coordinates","${w.latitude}, ${w.longitude}"))}){Text(tr("Copy"))}}}
  qr?.let{p->AlertDialog(onDismissRequest={qr=null},title={Text(p.name)},text={QrImage(p)},confirmButton={TextButton(onClick={qr=null}){Text(tr("Close"))}})}
  Text(tr("Manage saved tracks"))
  tracks.filter{it.ended!=null}.forEach{t->Row{Text(t.name.ifBlank{"Track "+t.started},Modifier.weight(1f));TextButton(onClick={edit=t;name=t.name}){Text(tr("Rename"))};TextButton(onClick={delete=t}){Text(tr("Delete"))}}}

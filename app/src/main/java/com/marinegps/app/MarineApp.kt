@@ -77,21 +77,21 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  val dark=when(appearance){"Dark"->true;"Light"->false;else->isSystemInDarkTheme()}
  CompositionLocalProvider(LocalArabic provides arabic,androidx.compose.ui.platform.LocalLayoutDirection provides if(arabic) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr){
  MaterialTheme(colorScheme=if(dark)darkColorScheme(primary=Color(0xFF65DBC0),secondaryContainer=Color(0xFF204C47))else lightColorScheme(primary=Color(0xFF006B59),secondaryContainer=Color(0xFFB5EBDD))){
- Scaffold(bottomBar={NavigationBar{labels.forEachIndexed{i,label->NavigationBarItem(selected=tab==i,onClick={tab=i},icon={NavGlyph(i)},label={Text(tr(label),fontSize=9.sp,maxLines=1,softWrap=false)})}}}){padding->
+ Scaffold(bottomBar={NavigationBar{labels.forEachIndexed{i,label->NavigationBarItem(selected=tab==i,onClick={tab=i;dataOpen=false},icon={NavGlyph(i)},label={Text(tr(label),fontSize=9.sp,maxLines=1,softWrap=false)})}}}){padding->
  Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp)){
  Text("Marine GPS",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(top=12.dp))
- Text((if(tab==4&&target!=null)"Navigation" else labels[tab])+" • Native GNSS",color=MaterialTheme.colorScheme.primary)
+ Text((if(tab==4&&target!=null)"Navigation" else labels[tab]).let{tr(it)}+" • Native GNSS",color=MaterialTheme.colorScheme.primary)
  Spacer(Modifier.height(12.dp))
  when(tab){
  5->TrackScreen(request,distance,units)
  0->MarineDashboard(s,units,format,request,settings)
  1->SignalScreen(s,usedOnly,{usedOnly=it})
  2->SkyScreen(s,usedOnly,{usedOnly=it})
- 4->if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units){targetId=null} else WaypointScreen(s,distance,format){targetId=it.id}
+ 4->if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units){targetId=null} else if(dataOpen)DataScreen{dataOpen=false}else WaypointScreen(s,distance,format,{dataOpen=true}){targetId=it.id}
  3->if(dataOpen) DataScreen{dataOpen=false} else LazyColumn(verticalArrangement=Arrangement.spacedBy(4.dp)){
  item{Text(tr("Language"));listOf("system","ar","en").forEach{l->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(language==l,{language=l;prefs.edit().putString("language",l).apply()});Text(when(l){"ar"->"العربية";"en"->"English";else->tr("System")})}}}
  item{Text(tr("Speed units"),style=MaterialTheme.typography.titleMedium)}
- items(listOf("kn","km/h","m/s")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=units==u,onClick={units=u;prefs.edit().putString("speed",u).apply()});Text(u)}}
+ items(listOf("kn","km/h","m/s")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=units==u,onClick={units=u;prefs.edit().putString("speed",u).apply()});Text(tr(u))}}
  item{Text(tr("Distance units"),style=MaterialTheme.typography.titleMedium)}
  items(listOf("NM","km","mi")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=distance==u,onClick={distance=u;prefs.edit().putString("distance",u).apply()});Text(u)}}
  item{Text(tr("Appearance"),style=MaterialTheme.typography.titleMedium)}
@@ -102,7 +102,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  item{OutlinedButton(onClick=settings){Text(tr("Android location settings"))}}
  item{Button(onClick={dataOpen=true}){Text(tr("Data management"))}}
  item{Text("Version 0.6.1 • Offline GNSS")}
- item{Text("Experimental navigation aid. Not a certified marine instrument.")}
+ item{Text(tr("Experimental navigation aid. Not a certified marine instrument."))}
  }
  }
  }
@@ -119,13 +119,13 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  item{Text(if(fresh)"GPS FIX · "+age+"s ago" else if(loc!=null)"STALE FIX" else s.message,color=MaterialTheme.colorScheme.primary)}
  if(s.message.contains("permission"))item{Button(onClick=request){Text(tr("Grant precise location"))}}
  if(s.message.contains("Enable location"))item{Button(onClick=settings){Text(tr("Enable GPS"))}}
- item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(10.dp)){Text(tr("Speed over ground"));Text(speed,fontSize=34.sp);Text("True course: "+if(fresh&&loc!=null&&courseReason(loc.takeIf{it.hasSpeed()}?.speed?.toDouble(),loc.takeIf{it.hasBearing()}?.bearing?.toDouble(),loc.takeIf{it.hasBearingAccuracy()}?.bearingAccuracyDegrees?.toDouble())==null)number(loc.bearing.toDouble())+"°" else "—")}}}
+ item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(10.dp)){Text(tr("Speed over ground"));Text(speed,fontSize=34.sp);Text(tr("True course: ")+if(fresh&&loc!=null&&courseReason(loc.takeIf{it.hasSpeed()}?.speed?.toDouble(),loc.takeIf{it.hasBearing()}?.bearing?.toDouble(),loc.takeIf{it.hasBearingAccuracy()}?.bearingAccuracyDegrees?.toDouble())==null)number(loc.bearing.toDouble())+"°" else "—")}}}
  item{DataCard("Horizontal accuracy",if(fresh&&loc!!.hasAccuracy())"± "+number(loc.accuracy.toDouble())+" m · "+when{loc.accuracy<=5->"Good";loc.accuracy<=15->"Moderate";else->"Poor"} else "—")}
  item{DataCard("Coordinates",if(fresh)coordinate(loc!!.latitude,true,format)+"\n"+coordinate(loc.longitude,false,format) else "—")}
  item{DataCard("Altitude (ellipsoid)",if(fresh&&loc!!.hasAltitude())number(loc.altitude)+" m" else "—")}
  item{DataCard("Unique satellites",groups(s).count{g->g.any{it.used}}.toString()+" used / "+groups(s).size+" visible")}
  item{DataCard("GNSS signals",s.satellites.count{it.used}.toString()+" used / "+s.satellites.size+" reported")}
- item{Text("First fix: "+(s.ttff?.let{number(it/1000.0)+" s"}?:"—"))}
+ item{Text(tr("First fix: ")+(s.ttff?.let{number(it/1000.0)+" s"}?:"—"))}
  }
 }
 @Composable private fun DataCard(label:String,value:String){Card(Modifier.fillMaxWidth()){Column(Modifier.padding(8.dp)){Text(label,style=MaterialTheme.typography.bodySmall);Text(value,fontSize=20.sp)}}}
@@ -153,7 +153,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  val ink=MaterialTheme.colorScheme.onSurface
  LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){
  item{Filter(usedOnly,change)}
- item{Text("True north • Rings: 0°, 30°, 60° elevation")}
+ item{Text(tr("True north • Rings: 0°, 30°, 60° elevation"))}
  item{CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr){Box(Modifier.fillMaxWidth().aspectRatio(1f)){
  Canvas(Modifier.fillMaxSize().padding(24.dp)){
  val c=center;val r=size.minDimension/2
@@ -177,7 +177,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  }
  Text("N",Modifier.align(Alignment.TopCenter));Text("S",Modifier.align(Alignment.BottomCenter));Text("W",Modifier.align(Alignment.CenterStart));Text("E",Modifier.align(Alignment.CenterEnd))
  }}}
- item{Text("Outlined dots = used in fix. Lines connect labels to true positions. Center = zenith.")}
+ item{Text(tr("Outlined dots = used in fix. Lines connect labels to true positions. Center = zenith."))}
  if(rows.isEmpty())item{Text(tr("Waiting for satellite positions"))}
  items(rows.groupBy{it.system}.entries.toList()){entry->Row(verticalAlignment=Alignment.CenterVertically){Canvas(Modifier.size(16.dp)){drawCircle(satColor(entry.key))};Spacer(Modifier.width(8.dp));Text(constellationName(entry.key)+" · "+entry.value.size+if(entry.value.size==1)" satellite" else " satellites")}}
  }

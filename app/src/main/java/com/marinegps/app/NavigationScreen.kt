@@ -56,11 +56,11 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  val outline=MaterialTheme.colorScheme.outline
  Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(4.dp)){
  Text("Navigating to • "+target.name,style=MaterialTheme.typography.titleMedium,maxLines=2)
- Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=headingUp,onClick={headingUp=true;prefs.edit().putBoolean("heading_up",true).apply()},label={Text("Heading-up")});FilterChip(selected=!headingUp,onClick={headingUp=false;prefs.edit().putBoolean("heading_up",false).apply()},label={Text("North-up")})}
- if(near)Text("Near destination — verify visually",color=accent,style=MaterialTheme.typography.bodyMedium)
+ Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=headingUp,onClick={headingUp=true;prefs.edit().putBoolean("heading_up",true).apply()},label={Text(tr("Heading-up"))});FilterChip(selected=!headingUp,onClick={headingUp=false;prefs.edit().putBoolean("heading_up",false).apply()},label={Text(tr("North-up"))})}
+ if(near)Text(tr("Near destination — verify visually"),color=accent,style=MaterialTheme.typography.bodyMedium)
  LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)){
- if(target.category=="Hazard")item{Text("Hazard waypoint — do not approach blindly",color=MaterialTheme.colorScheme.error)}
- item{Text(if(fix==null)"GPS unavailable — navigation paused" else if(bearing==null&&near)"Near target" else if(bearing==null)"Direction uncertain — near target or insufficient accuracy" else if(headingUp&&heading==null)"Compass unavailable — hold phone flat, calibrate away from metal or select North-up" else "GPS FIX • "+if(headingUp)"Heading-up" else "North-up",color=if(bearing==null||reference==null)MaterialTheme.colorScheme.error else accent)}
+ if(target.category=="Hazard")item{Text(tr("Hazard waypoint — do not approach blindly"),color=MaterialTheme.colorScheme.error)}
+ item{Text(tr(if(fix==null)"GPS unavailable — navigation paused" else if(bearing==null&&near)"Near target" else if(bearing==null)"Direction uncertain — near target or insufficient accuracy" else if(headingUp&&heading==null)"Compass unavailable — hold phone flat, calibrate away from metal or select North-up" else "GPS FIX • "+if(headingUp)"Heading-up" else "North-up"),color=if(bearing==null||reference==null)MaterialTheme.colorScheme.error else accent)}
  item{Box(Modifier.fillMaxWidth().height(160.dp)){
  Canvas(Modifier.fillMaxSize().padding(24.dp)){
  val r=size.minDimension/2;val c=center
@@ -78,24 +78,24 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  if(reference!=null){val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{color=ink.toArgb();textSize=14.dp.toPx();textAlign=android.graphics.Paint.Align.CENTER};listOf(0.0 to "N",90.0 to "E",180.0 to "S",270.0 to "W").forEach{(a,label)->val p=point(relativeHeading(a,reference),1.12f);drawContext.canvas.nativeCanvas.drawText(label,p.x,p.y-(paint.ascent()+paint.descent())/2,paint)}}
  if(relative!=null)drawCircle(ink,3.dp.toPx(),c)
  }
- if(relative==null&&!near)Text(if(fix==null)"GPS unavailable" else if(bearing==null)"Direction uncertain" else "Compass unavailable",Modifier.align(Alignment.Center),style=MaterialTheme.typography.bodySmall)
+ if(relative==null&&!near)Text(tr(if(fix==null)"GPS unavailable" else if(bearing==null)"Direction uncertain" else "Compass unavailable"),Modifier.align(Alignment.Center),style=MaterialTheme.typography.bodySmall)
  }}
- item{Text("Green: target • White: GPS course. Hold phone flat.")}
+ item{Text(tr("Green: target • White: GPS course. Hold phone flat."))}
  item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
- Text("Distance: "+(m?.let{distanceLabel(it.meters,unit)}?:"—"),style=MaterialTheme.typography.headlineSmall)
- Text("Bearing true: "+(bearing?.let{fmtPoint(it,1)+"°"}?:"—"))
+ Text(tr("Distance: ")+(m?.let{distanceLabel(it.meters,unit)}?:"—"),style=MaterialTheme.typography.headlineSmall)
+ Text(tr("Bearing true: ")+(bearing?.let{fmtPoint(it,1)+"°"}?:"—"))
  Text("SOG: "+(speed?.let{speedLabel(it,speedUnit)}?:"—"))
- Text("Phone heading true: "+(heading?.let{fmtPoint(it,1)+"°"}?:"—"))
- if(headingUp)Text("Compass: "+headingInfo.status,style=MaterialTheme.typography.bodySmall)
- Text("GPS fix age: "+(fix?.let{((android.os.SystemClock.elapsedRealtime()-it.elapsedRealtimeNanos/1000000L).coerceAtLeast(0)/1000).toString()+" s"}?:"—"))
- Text("COG true: "+(course?.let{fmtPoint(it,1)+"°"}?:("— ("+reason+")")))
- Text("ETA (current closing speed): "+(eta?.let{fmtPoint(it/60,1)+" min"}?:"—"))
- Text("GPS accuracy: "+(accuracy?.let{"± "+fmtPoint(it.toDouble(),1)+" m"}?:"—"))
+ Text(tr("Phone heading true: ")+(heading?.let{fmtPoint(it,1)+"°"}?:"—"))
+ if(headingUp)Text(tr("Compass: ")+tr(headingInfo.status),style=MaterialTheme.typography.bodySmall)
+ Text(tr("GPS fix age: ")+(fix?.let{((android.os.SystemClock.elapsedRealtime()-it.elapsedRealtimeNanos/1000000L).coerceAtLeast(0)/1000).toString()+" s"}?:"—"))
+ Text("COG true: "+(course?.let{fmtPoint(it,1)+"°"}?:("— ("+tr(reason.orEmpty())+")")))
+ Text(tr("ETA (current closing speed): ")+(eta?.let{fmtPoint(it/60,1)+" min"}?:"—"))
+ Text(tr("GPS accuracy: ")+(accuracy?.let{"± "+fmtPoint(it.toDouble(),1)+" m"}?:"—"))
 
  }}}
- item{Text("Direct bearing only. No charts, depth or obstacle avoidance. Keep a separate navigation aid.")}
- item{Row(verticalAlignment=Alignment.CenterVertically){Text("Keep screen on",Modifier.weight(1f));Switch(checked=keepOn,onCheckedChange={keepOn=it;prefs.edit().putBoolean("navigation_keep_on",it).apply()})}}
+ item{Text(tr("Direct bearing only. No charts, depth or obstacle avoidance. Keep a separate navigation aid."))}
+ item{Row(verticalAlignment=Alignment.CenterVertically){Text(tr("Keep screen on"),Modifier.weight(1f));Switch(checked=keepOn,onCheckedChange={keepOn=it;prefs.edit().putBoolean("navigation_keep_on",it).apply()})}}
  }
- OutlinedButton(onClick=stop,modifier=Modifier.fillMaxWidth()){Text("Stop navigation")}
+ OutlinedButton(onClick=stop,modifier=Modifier.fillMaxWidth()){Text(tr("Stop navigation"))}
  }
 }

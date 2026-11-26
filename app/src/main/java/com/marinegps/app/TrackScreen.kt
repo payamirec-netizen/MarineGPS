@@ -55,13 +55,13 @@ import androidx.compose.ui.Alignment
  };if(error.isNotEmpty())Text(error,color=MaterialTheme.colorScheme.error)
  var diagnostics by remember{mutableStateOf(false)}
  LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(bottom=16.dp)){
- if(active?.state=="recording")item{Text(if(!health.running)"Recording service inactive — reconnect" else if(health.lastFix==0L||clock-health.lastFix>10000L)"Waiting for usable GPS" else "GPS connected");TextButton(onClick={diagnostics=!diagnostics}){Text(if(diagnostics)"Hide GPS diagnostics" else "GPS diagnostics")};if(diagnostics){Text("Last fix: "+if(health.lastFix==0L)"—" else ((clock-health.lastFix).coerceAtLeast(0)/1000).toString()+" s ago");Text("GPS accuracy: "+(health.accuracy?.let{"± "+fmtPoint(it.toDouble(),1)+" m"}?:"—"));Text("Session gaps: "+health.gaps+" • "+((health.gapMillis+if(health.waitingSince>0)(clock-health.waitingSince).coerceAtLeast(0) else 0)/1000)+" s");Text("Background service: "+if(health.running)"Active" else "Inactive");val power=context.getSystemService(android.os.PowerManager::class.java);Text("Power saving: "+if(power.isPowerSaveMode)"On" else "Off");Text("Battery optimization: "+if(power.isIgnoringBatteryOptimizations(context.packageName))"Exempt" else "Enabled");TextButton(onClick={runCatching{context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+context.packageName)))}}){Text(tr("App battery settings"))};var recovery by remember{mutableStateOf(false)};TextButton(onClick={recovery=!recovery}){Text(tr("Recording help"))};if(recovery||!health.running){Text("If recording stops updating, reconnect GPS.");OutlinedButton(onClick={command("reconnect")}){Text(tr("Reconnect GPS"))}}}}
+ if(active?.state=="recording")item{Text(if(!health.running)"Recording service inactive — reconnect" else if(health.lastFix==0L||clock-health.lastFix>10000L)"Waiting for usable GPS" else "GPS connected");TextButton(onClick={diagnostics=!diagnostics}){Text(if(diagnostics)"Hide GPS diagnostics" else "GPS diagnostics")};if(diagnostics){Text(tr("Last fix: ")+if(health.lastFix==0L)"—" else ((clock-health.lastFix).coerceAtLeast(0)/1000).toString()+" s ago");Text(tr("GPS accuracy: ")+(health.accuracy?.let{"± "+fmtPoint(it.toDouble(),1)+" m"}?:"—"));Text(tr("Session gaps: ")+health.gaps+" • "+((health.gapMillis+if(health.waitingSince>0)(clock-health.waitingSince).coerceAtLeast(0) else 0)/1000)+" s");Text(tr("Background service: ")+if(health.running)"Active" else "Inactive");val power=context.getSystemService(android.os.PowerManager::class.java);Text(tr("Power saving: ")+if(power.isPowerSaveMode)"On" else "Off");Text(tr("Battery optimization: ")+if(power.isIgnoringBatteryOptimizations(context.packageName))"Exempt" else "Enabled");TextButton(onClick={runCatching{context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+context.packageName)))}}){Text(tr("App battery settings"))};var recovery by remember{mutableStateOf(false)};TextButton(onClick={recovery=!recovery}){Text(tr("Recording help"))};if(recovery||!health.running){Text(tr("If recording stops updating, reconnect GPS."));OutlinedButton(onClick={command("reconnect")}){Text(tr("Reconnect GPS"))}}}}
  if(detail!=null)item{TrackDetail(detail,dao,unit,speedUnit)}
  item{Text(tr("Saved tracks"),style=MaterialTheme.typography.titleMedium)}
  item{Row{TextButton(onClick={selection=tracks.filter{it.ended!=null}.map{it.id}.toSet()}){Text(tr("Select all"))};TextButton(onClick={selection=emptySet()}){Text(tr("Clear selection"))}}}
  if(selection.isNotEmpty())item{var data by remember(selection){mutableStateOf<TransferData?>(null)};LaunchedEffect(selection){data=TransferData(emptyList(),tracks.filter{it.id in selection&&it.ended!=null}.map{t->TransferTrack(t.name,dao.points(t.id).first().groupBy{it.segment}.values.map{s->s.map{TransferPoint("",it.lat,it.lon,time=it.time,accuracy=it.accuracy)}},t.started,t.ended,t.activeMillis,t.meters,t.maxSpeed)})};data?.let{SelectionActions(it,{bulkDelete=true})}}
  items(tracks.filter{it.ended!=null},key={it.id}){t->Row{Checkbox(t.id in selection,{checked->selection=if(checked)selection+t.id else selection-t.id});OutlinedButton(onClick={selected=t.id},modifier=Modifier.fillMaxWidth()){Text(t.name.ifBlank{DateFormat.getDateTimeInstance().format(Date(t.started))}+" • "+distanceLabel(t.meters,unit))}}}
- item{Text("Track sketch only — not a nautical chart. Keep independent navigation equipment.")}
+ item{Text(tr("Track sketch only — not a nautical chart. Keep independent navigation equipment."))}
  }
  }
  if(bulkDelete)AlertDialog(onDismissRequest={bulkDelete=false},title={Text(tr("Confirm deletion"))},confirmButton={TextButton(onClick={bulkDelete=false;scope.launch{TrackDb.get(context).withTransaction{tracks.filter{it.id in selection&&it.ended!=null}.forEach{dao.delete(it)}};selection=emptySet()}}){Text(tr("Delete"))}},dismissButton={TextButton(onClick={bulkDelete=false}){Text(tr("Cancel"))}})
@@ -69,14 +69,14 @@ import androidx.compose.ui.Alignment
 internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0;val base=10.0.pow(floor(log10(max)));return base*(listOf(1.0,2.0,5.0).lastOrNull{it<=max/base}?:0.5)}
 @Composable private fun TrackDetail(t:Track,dao:TrackDao,unit:String,speedUnit:String){
  val points by remember(t.id){dao.points(t.id)}.collectAsState(initial=emptyList())
- Text("Distance: "+distanceLabel(t.meters,unit),style=MaterialTheme.typography.headlineSmall)
- Text("Recorded time: "+t.activeMillis/60000+" min "+t.activeMillis/1000%60+" s")
- Text("Average: "+speedLabel(if(t.activeMillis>0)t.meters/t.activeMillis*1000 else 0.0,speedUnit)+" • Max: "+speedLabel(t.maxSpeed,speedUnit))
- Text("Points: "+points.size)
+ Text(tr("Distance: ")+distanceLabel(t.meters,unit),style=MaterialTheme.typography.headlineSmall)
+ Text(tr("Recorded time: ")+t.activeMillis/60000+" min "+t.activeMillis/1000%60+" s")
+ Text(tr("Average: ")+speedLabel(if(t.activeMillis>0)t.meters/t.activeMillis*1000 else 0.0,speedUnit)+" • Max: "+speedLabel(t.maxSpeed,speedUnit))
+ Text(tr("Points: ")+points.size)
  val color=MaterialTheme.colorScheme.primary
  val ink=MaterialTheme.colorScheme.onSurface
  val grid=MaterialTheme.colorScheme.outline
- Text("North-up • Green: start • Orange: end/current",style=MaterialTheme.typography.bodySmall)
+ Text(tr("North-up • Green: start • Orange: end/current"),style=MaterialTheme.typography.bodySmall)
  Canvas(Modifier.fillMaxWidth().height(220.dp)){
  for(i in 1..4){val x=size.width*i/5;val y=size.height*i/5;drawLine(grid.copy(alpha=0.15f),Offset(x,0f),Offset(x,size.height));drawLine(grid.copy(alpha=0.15f),Offset(0f,y),Offset(size.width,y))}
  if(points.isNotEmpty()&&size.width>48.dp.toPx()&&size.height>48.dp.toPx()){
