@@ -169,7 +169,23 @@ private val translations=mapOf("Dashboard" to "الرئيسية",
 "Unavailable" to "غير متاحة",
 "QR too large; share a file instead" to "الرمز كبير؛ شارك ملفاً بدلاً منه",
 "Scan QR with camera" to "قراءة QR بالكاميرا",
-"Cancel selection" to "إلغاء التحديد")
+"Cancel selection" to "إلغاء التحديد","recording" to "جارٍ التسجيل",
+"paused" to "متوقف مؤقتاً",
+"saved" to "محفوظ",
+"Enable GPS first" to "شغّل GPS أولاً",
+"GPS FIX" to "تم تحديد الموقع",
+"STALE FIX" to "موقع قديم",
+"used" to "مستخدمة",
+"visible" to "مرئية",
+"reported" to "مستقبلة",
+"Satellites: " to "الأقمار: ",
+"Signals: " to "الإشارات: ",
+"Max: " to "الأقصى: ",
+"Scan QR with camera" to "قراءة QR بالكاميرا",
+"Share MarineGPS" to "مشاركة MarineGPS",
+"Back to locations" to "رجوع للمواقع",
+"Native GNSS" to "تحديد الموقع بالأقمار",
+"Offline GNSS" to "تحديد الموقع دون إنترنت")
 internal fun translateText(s:String,arabic:Boolean):String=if(arabic)translations[s]?:s else s
 internal fun appArabic(c:android.content.Context):Boolean {val v=c.getSharedPreferences("marine_settings",0).getString("language","system");return v=="ar"||(v=="system"&&java.util.Locale.getDefault().language=="ar")}
 @Composable internal fun tr(s:String):String=if(LocalArabic.current)translations[s]?:s else s

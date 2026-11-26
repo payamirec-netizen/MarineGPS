@@ -80,7 +80,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  Scaffold(bottomBar={NavigationBar{labels.forEachIndexed{i,label->NavigationBarItem(selected=tab==i,onClick={tab=i;dataOpen=false},icon={NavGlyph(i)},label={Text(tr(label),fontSize=9.sp,maxLines=1,softWrap=false)})}}}){padding->
  Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp)){
  Text("Marine GPS",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(top=12.dp))
- Text((if(tab==4&&target!=null)"Navigation" else labels[tab]).let{tr(it)}+" • Native GNSS",color=MaterialTheme.colorScheme.primary)
+ Text((if(tab==4&&target!=null)"Navigation" else labels[tab]).let{tr(it)}+" • "+tr("Native GNSS"),color=MaterialTheme.colorScheme.primary)
  Spacer(Modifier.height(12.dp))
  when(tab){
  5->TrackScreen(request,distance,units)
@@ -93,15 +93,15 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  item{Text(tr("Speed units"),style=MaterialTheme.typography.titleMedium)}
  items(listOf("kn","km/h","m/s")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=units==u,onClick={units=u;prefs.edit().putString("speed",u).apply()});Text(tr(u))}}
  item{Text(tr("Distance units"),style=MaterialTheme.typography.titleMedium)}
- items(listOf("NM","km","mi")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=distance==u,onClick={distance=u;prefs.edit().putString("distance",u).apply()});Text(u)}}
+ items(listOf("NM","km","mi")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=distance==u,onClick={distance=u;prefs.edit().putString("distance",u).apply()});Text(tr(u))}}
  item{Text(tr("Appearance"),style=MaterialTheme.typography.titleMedium)}
- items(listOf("System","Light","Dark")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=appearance==u,onClick={appearance=u;prefs.edit().putString("appearance",u).apply()});Text(u)}}
+ items(listOf("System","Light","Dark")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=appearance==u,onClick={appearance=u;prefs.edit().putString("appearance",u).apply()});Text(tr(u))}}
  item{Text(tr("Coordinate format"),style=MaterialTheme.typography.titleMedium)}
- items(listOf("DD","DDM","DMS")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=format==u,onClick={format=u;prefs.edit().putString("coordinates",u).apply()});Text(u)}}
+ items(listOf("DD","DDM","DMS")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=format==u,onClick={format=u;prefs.edit().putString("coordinates",u).apply()});Text(tr(u))}}
  item{Button(onClick=request){Text(tr("Location permission"))}}
  item{OutlinedButton(onClick=settings){Text(tr("Android location settings"))}}
  item{Button(onClick={dataOpen=true}){Text(tr("Data management"))}}
- item{Text("Version 0.6.1 • Offline GNSS")}
+ item{Text("0.6.1 • "+tr("Offline GNSS"))}
  item{Text(tr("Experimental navigation aid. Not a certified marine instrument."))}
  }
  }
@@ -116,19 +116,19 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  val fresh=loc!=null&&age!=null&&age<=5
  val speed=if(fresh&&loc!!.hasSpeed())number(loc.speed.toDouble()*when(units){"kn"->3600.0/1852;"km/h"->3.6;else->1.0})+" "+units else "—"
  LazyColumn(verticalArrangement=Arrangement.spacedBy(6.dp),contentPadding=PaddingValues(bottom=16.dp)){
- item{Text(if(fresh)"GPS FIX · "+age+"s ago" else if(loc!=null)"STALE FIX" else s.message,color=MaterialTheme.colorScheme.primary)}
+ item{Text(if(fresh)tr("GPS FIX")+" · "+age+" s" else if(loc!=null)tr("STALE FIX") else tr(s.message),color=MaterialTheme.colorScheme.primary)}
  if(s.message.contains("permission"))item{Button(onClick=request){Text(tr("Grant precise location"))}}
  if(s.message.contains("Enable location"))item{Button(onClick=settings){Text(tr("Enable GPS"))}}
  item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(10.dp)){Text(tr("Speed over ground"));Text(speed,fontSize=34.sp);Text(tr("True course: ")+if(fresh&&loc!=null&&courseReason(loc.takeIf{it.hasSpeed()}?.speed?.toDouble(),loc.takeIf{it.hasBearing()}?.bearing?.toDouble(),loc.takeIf{it.hasBearingAccuracy()}?.bearingAccuracyDegrees?.toDouble())==null)number(loc.bearing.toDouble())+"°" else "—")}}}
- item{DataCard("Horizontal accuracy",if(fresh&&loc!!.hasAccuracy())"± "+number(loc.accuracy.toDouble())+" m · "+when{loc.accuracy<=5->"Good";loc.accuracy<=15->"Moderate";else->"Poor"} else "—")}
+ item{DataCard("Horizontal accuracy",if(fresh&&loc!!.hasAccuracy())"± "+number(loc.accuracy.toDouble())+" m · "+tr(when{loc.accuracy<=5->"Good";loc.accuracy<=15->"Moderate";else->"Poor"}) else "—")}
  item{DataCard("Coordinates",if(fresh)coordinate(loc!!.latitude,true,format)+"\n"+coordinate(loc.longitude,false,format) else "—")}
  item{DataCard("Altitude (ellipsoid)",if(fresh&&loc!!.hasAltitude())number(loc.altitude)+" m" else "—")}
- item{DataCard("Unique satellites",groups(s).count{g->g.any{it.used}}.toString()+" used / "+groups(s).size+" visible")}
- item{DataCard("GNSS signals",s.satellites.count{it.used}.toString()+" used / "+s.satellites.size+" reported")}
+ item{DataCard("Unique satellites",groups(s).count{g->g.any{it.used}}.toString()+" "+tr("used")+" / "+groups(s).size+" "+tr("visible"))}
+ item{DataCard("GNSS signals",s.satellites.count{it.used}.toString()+" "+tr("used")+" / "+s.satellites.size+" "+tr("reported"))}
  item{Text(tr("First fix: ")+(s.ttff?.let{number(it/1000.0)+" s"}?:"—"))}
  }
 }
-@Composable private fun DataCard(label:String,value:String){Card(Modifier.fillMaxWidth()){Column(Modifier.padding(8.dp)){Text(label,style=MaterialTheme.typography.bodySmall);Text(value,fontSize=20.sp)}}}
+@Composable private fun DataCard(label:String,value:String){Card(Modifier.fillMaxWidth()){Column(Modifier.padding(8.dp)){Text(tr(label),style=MaterialTheme.typography.bodySmall);Text(value,fontSize=20.sp)}}}
 @Composable private fun Filter(usedOnly:Boolean,change:(Boolean)->Unit){Row(verticalAlignment=Alignment.CenterVertically){Text(tr("Used satellites only"),Modifier.weight(1f));Switch(checked=usedOnly,onCheckedChange=change)}}
 @Composable private fun SignalScreen(s:GnssState,usedOnly:Boolean,change:(Boolean)->Unit){
  val rows=groups(s).filter{!usedOnly||it.any{v->v.used}}.sortedByDescending{g->g.maxOf{it.cn0}}
