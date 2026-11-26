@@ -97,7 +97,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  item{Button(onClick=request){Text(tr("Location permission"))}}
  item{OutlinedButton(onClick=settings){Text(tr("Android location settings"))}}
  item{Button(onClick={dataOpen=true}){Text(tr("Data management"))}}
- item{Text("0.6.2 • "+tr("Offline GNSS"))}
+ item{Text("0.7.0 • "+tr("Offline GNSS"))}
  item{Text(tr("Experimental navigation aid. Not a certified marine instrument."))}
  }
  }
@@ -137,7 +137,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  val first=group.first()
  Text(constellationName(first.system)+" "+first.id+" · "+group.size+" "+tr(if(group.size==1)"signal" else "signals"),style=MaterialTheme.typography.titleMedium)
  group.sortedByDescending{it.cn0}.forEach{sat->
- Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(band(sat)+if(sat.used)" ✓" else "");Text(number(sat.cn0.toDouble())+" dB-Hz")}
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(band(sat)+if(sat.used)" ✓" else "");Text(ltrValue(number(sat.cn0.toDouble())+" dB-Hz"))}
  Canvas(Modifier.fillMaxWidth().height(8.dp)){drawRoundRect(color=Color.Gray.copy(alpha=0.25f),cornerRadius=androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()));drawRoundRect(color=satColor(sat.system),size=androidx.compose.ui.geometry.Size(size.width*(sat.cn0/60f).coerceIn(0f,1f),size.height),cornerRadius=androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))}
  Text(tr("Az")+" "+number(sat.azimuth.toDouble(),0)+"° · "+tr("El")+" "+number(sat.elevation.toDouble(),0)+"°"+(sat.frequency?.let{" · "+number(it/1e6)+" MHz"}?:""),style=MaterialTheme.typography.bodySmall)
  }}}
