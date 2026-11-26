@@ -17,6 +17,7 @@ android {
 }
 kotlin { jvmToolchain(17) }
 dependencies {
+ testImplementation("org.json:json:20240303")
  implementation("com.google.zxing:core:3.5.3")
  implementation("androidx.core:core:1.15.0")
  implementation("androidx.room:room-runtime:2.6.1")

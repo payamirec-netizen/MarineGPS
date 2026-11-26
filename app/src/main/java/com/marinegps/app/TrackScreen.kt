@@ -38,20 +38,23 @@ import androidx.compose.ui.Alignment
  if(action in listOf("start","resume","reconnect")&&!context.getSystemService(LocationManager::class.java).isProviderEnabled(LocationManager.GPS_PROVIDER)){error="Enable GPS first";return}
  try{context.startForegroundService(Intent(context,TrackService::class.java).setAction(action));error=""}catch(e:Exception){error="Unable to start recording: "+e.localizedMessage}
  }
- LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(bottom=16.dp)){
- item{Text("Track recording",style=MaterialTheme.typography.titleLarge);Text(active?.state?.uppercase()?:"READY • Offline")}
- item{Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
+ Column(Modifier.fillMaxSize()){
+ Text("Track recording",style=MaterialTheme.typography.titleLarge);Text(active?.state?.uppercase()?:"READY • Offline")
+ Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
  if(active==null)Button(onClick={selected=null;command("start")}){Text("Record")}
  else{
  Button(onClick={command(if(active.state=="paused")"resume" else "pause")}){Text(if(active.state=="paused")"Resume" else "Pause")}
  OutlinedButton(onClick={command("stop")}){Text("Stop & save")}
  }
- };if(error.isNotEmpty())Text(error,color=MaterialTheme.colorScheme.error)}
- if(active?.state=="recording")item{Text(if(!health.running)"Recording service inactive — reconnect" else if(health.lastFix==0L||clock-health.lastFix>10000L)"Waiting for usable GPS" else "GPS connected");Text("Last fix: "+if(health.lastFix==0L)"—" else ((clock-health.lastFix).coerceAtLeast(0)/1000).toString()+" s ago");Text("GPS accuracy: "+(health.accuracy?.let{"± "+fmtPoint(it.toDouble(),1)+" m"}?:"—"));Text("Session gaps: "+health.gaps+" • "+((health.gapMillis+if(health.waitingSince>0)(clock-health.waitingSince).coerceAtLeast(0) else 0)/1000)+" s");Text("Background service: "+if(health.running)"Active" else "Inactive");Text(health.message);val power=context.getSystemService(android.os.PowerManager::class.java);Text("Power saving: "+if(power.isPowerSaveMode)"On" else "Off");Text("Battery optimization: "+if(power.isIgnoringBatteryOptimizations(context.packageName))"Exempt" else "Enabled");TextButton(onClick={runCatching{context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+context.packageName)))}}){Text("App battery settings")};var recovery by remember{mutableStateOf(false)};TextButton(onClick={recovery=!recovery}){Text("Recording help")};if(recovery||!health.running){Text("If recording stops updating, reconnect GPS.");OutlinedButton(onClick={command("reconnect")}){Text("Reconnect GPS")}}}
+ };if(error.isNotEmpty())Text(error,color=MaterialTheme.colorScheme.error)
+ var diagnostics by remember{mutableStateOf(false)}
+ LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(bottom=16.dp)){
+ if(active?.state=="recording")item{Text(if(!health.running)"Recording service inactive — reconnect" else if(health.lastFix==0L||clock-health.lastFix>10000L)"Waiting for usable GPS" else "GPS connected");TextButton(onClick={diagnostics=!diagnostics}){Text(if(diagnostics)"Hide GPS diagnostics" else "GPS diagnostics")};if(diagnostics){Text("Last fix: "+if(health.lastFix==0L)"—" else ((clock-health.lastFix).coerceAtLeast(0)/1000).toString()+" s ago");Text("GPS accuracy: "+(health.accuracy?.let{"± "+fmtPoint(it.toDouble(),1)+" m"}?:"—"));Text("Session gaps: "+health.gaps+" • "+((health.gapMillis+if(health.waitingSince>0)(clock-health.waitingSince).coerceAtLeast(0) else 0)/1000)+" s");Text("Background service: "+if(health.running)"Active" else "Inactive");val power=context.getSystemService(android.os.PowerManager::class.java);Text("Power saving: "+if(power.isPowerSaveMode)"On" else "Off");Text("Battery optimization: "+if(power.isIgnoringBatteryOptimizations(context.packageName))"Exempt" else "Enabled");TextButton(onClick={runCatching{context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+context.packageName)))}}){Text("App battery settings")};var recovery by remember{mutableStateOf(false)};TextButton(onClick={recovery=!recovery}){Text("Recording help")};if(recovery||!health.running){Text("If recording stops updating, reconnect GPS.");OutlinedButton(onClick={command("reconnect")}){Text("Reconnect GPS")}}}}
  if(detail!=null)item{TrackDetail(detail,dao,unit,speedUnit)}
  item{Text("Saved tracks",style=MaterialTheme.typography.titleMedium)}
- items(tracks.filter{it.ended!=null},key={it.id}){t->OutlinedButton(onClick={selected=t.id},modifier=Modifier.fillMaxWidth()){Text(DateFormat.getDateTimeInstance().format(Date(t.started))+" • "+distanceLabel(t.meters,unit))}}
+ items(tracks.filter{it.ended!=null},key={it.id}){t->OutlinedButton(onClick={selected=t.id},modifier=Modifier.fillMaxWidth()){Text(t.name.ifBlank{DateFormat.getDateTimeInstance().format(Date(t.started))}+" • "+distanceLabel(t.meters,unit))}}
  item{Text("Track sketch only — not a nautical chart. Keep independent navigation equipment.")}
+ }
  }
 }
 internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0;val base=10.0.pow(floor(log10(max)));return base*(listOf(1.0,2.0,5.0).lastOrNull{it<=max/base}?:0.5)}

@@ -26,11 +26,12 @@ import androidx.room.withTransaction
  var output by remember{mutableStateOf("")}
  var qr by remember{mutableStateOf<TransferPoint?>(null)}
  val prefs=c.getSharedPreferences("marine_settings",0)
- val waypoints by wd.points().observe().collectAsState(initial=emptyList())
- val tracks by td.tracks().observe().collectAsState(initial=emptyList())
+ val waypoints by remember(wd){wd.points().observe()}.collectAsState(initial=emptyList())
+ val tracks by remember(td){td.tracks().observe()}.collectAsState(initial=emptyList())
  var edit by remember{mutableStateOf<Track?>(null)}
  var delete by remember{mutableStateOf<Track?>(null)}
  var name by remember{mutableStateOf("")}
+ val scan=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri->if(uri!=null)scope.launch{try{val p=withContext(Dispatchers.IO){readQr(c,uri)};pending=TransferData(listOf(p),emptyList());message="Review QR waypoint"}catch(e:Exception){message="QR rejected: "+e.message}}}
  val save=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")){uri->
  if(uri!=null)scope.launch{busy=true;try{withContext(Dispatchers.IO){c.contentResolver.openOutputStream(uri)?.use{it.write(output.toByteArray(Charsets.UTF_8))}?:error("Cannot open file")};message="Export saved"}catch(e:Exception){message="Export failed: "+e.message}finally{busy=false}}
  }
@@ -51,6 +52,7 @@ import androidx.room.withTransaction
  Text(message)
  OutlinedButton(enabled=!busy,onClick={export("gpx",true)}){Text("Share GPX")}
  OutlinedButton(enabled=!busy,onClick={export("json",true)}){Text("Share backup")}
+ OutlinedButton(enabled=!busy,onClick={scan.launch("image/*")}){Text("Read QR from image")}
  Text("Share waypoints")
  waypoints.forEach{w->Row{Text(w.name,Modifier.weight(1f));TextButton(onClick={qr=TransferPoint(w.name,w.latitude,w.longitude,w.notes)}){Text("QR")};TextButton(onClick={val clip=c.getSystemService(android.content.ClipboardManager::class.java);clip.setPrimaryClip(android.content.ClipData.newPlainText("Coordinates","${w.latitude}, ${w.longitude}"))}){Text("Copy")}}}
  qr?.let{p->AlertDialog(onDismissRequest={qr=null},title={Text(p.name)},text={QrImage(p)},confirmButton={TextButton(onClick={qr=null}){Text("Close")}})}
@@ -59,8 +61,9 @@ import androidx.room.withTransaction
  edit?.let{t->AlertDialog(onDismissRequest={edit=null},title={Text("Rename track")},text={OutlinedTextField(name,{name=it.take(200)})},confirmButton={TextButton(onClick={edit=null;scope.launch{td.tracks().update(t.copy(name=name.trim()))}}){Text("Save")}})}
  delete?.let{t->AlertDialog(onDismissRequest={delete=null},title={Text("Delete saved track?")},confirmButton={TextButton(onClick={delete=null;scope.launch{td.tracks().delete(t)}}){Text("Delete")}},dismissButton={TextButton(onClick={delete=null}){Text("Cancel")}})}
  pending?.let{d->AlertDialog(onDismissRequest={pending=null},title={Text("Import preview")},text={Text("${d.points.size} waypoints • ${d.tracks.size} tracks. Existing data will not be deleted.")},dismissButton={TextButton(onClick={pending=null}){Text("Cancel")}},confirmButton={TextButton(onClick={pending=null;scope.launch{busy=true;try{
- wd.withTransaction{val existing=wd.points().observe().first().map{Triple(it.name,it.latitude,it.longitude)}.toMutableSet();d.points.forEach{p->if(existing.add(Triple(p.name,p.lat,p.lon)))wd.points().insert(Waypoint(name=p.name.ifBlank{"Imported waypoint"},latitude=p.lat,longitude=p.lon,category=p.category,notes=p.notes,createdAt=p.time?:System.currentTimeMillis(),accuracy=p.accuracy))}}
- td.withTransaction{d.tracks.forEach{t->val now=System.currentTimeMillis();val meters=t.segments.sumOf{s->s.zipWithNext().sumOf{(a,b)->targetMetrics(a.lat,a.lon,b.lat,b.lon).meters}};val id=td.tracks().insert(Track(started=t.started?:t.segments.flatten().mapNotNull{it.time}.minOrNull()?:now,ended=t.ended?:t.segments.flatten().mapNotNull{it.time}.maxOrNull()?:now,meters=t.meters?:meters,state="saved",name=t.name,activeMillis=t.activeMillis,maxSpeed=t.maxSpeed));t.segments.forEachIndexed{i,s->s.forEach{p->td.tracks().point(TrackPoint(trackId=id,time=p.time?:now,lat=p.lat,lon=p.lon,accuracy=p.accuracy?:0f,segment=i.toLong()))}}}}
+ require(td.tracks().active()==null){"Stop recording before import"}
+ wd.withTransaction{val existing=wd.points().observe().first().map{Triple(it.name,it.latitude,it.longitude)}.toMutableSet();d.points.forEach{p->if(existing.add(Triple(p.name.ifBlank{"Imported waypoint"},p.lat,p.lon)))wd.points().insert(Waypoint(name=p.name.ifBlank{"Imported waypoint"},latitude=p.lat,longitude=p.lon,category=p.category,notes=p.notes,createdAt=p.time?:System.currentTimeMillis(),accuracy=p.accuracy))}}
+ td.withTransaction{val existing=td.tracks().observe().first().filter{it.ended!=null}.map{t->trackKey(td.tracks().points(t.id).first().groupBy{it.segment}.values.map{s->s.map{TransferPoint("",it.lat,it.lon)}})}.toMutableSet();d.tracks.forEach{t->if(t.segments.flatten().isEmpty()||!existing.add(trackKey(t.segments)))return@forEach;val now=System.currentTimeMillis();val meters=t.segments.sumOf{s->s.zipWithNext().sumOf{(a,b)->targetMetrics(a.lat,a.lon,b.lat,b.lon).meters}};val id=td.tracks().insert(Track(started=t.started?:t.segments.flatten().mapNotNull{it.time}.minOrNull()?:now,ended=t.ended?:t.segments.flatten().mapNotNull{it.time}.maxOrNull()?:now,meters=t.meters?:meters,state="saved",name=t.name,activeMillis=t.activeMillis,maxSpeed=t.maxSpeed));t.segments.forEachIndexed{i,s->s.forEach{p->td.tracks().point(TrackPoint(trackId=id,time=p.time?:now,lat=p.lat,lon=p.lon,accuracy=p.accuracy?:0f,segment=i.toLong()))}}}}
  prefs.edit().apply{d.settings.forEach{(k,v)->putString(k,v)}}.apply();message="Import completed; reopen app to apply restored settings"
  }catch(e:Exception){message="Import interrupted; some data may have been saved: "+e.message}finally{busy=false}}}){Text("Import")}})}
  }

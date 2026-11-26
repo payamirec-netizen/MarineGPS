@@ -60,8 +60,8 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  if(near)Text("Near destination — verify visually",color=accent,style=MaterialTheme.typography.bodyMedium)
  LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)){
  if(target.category=="Hazard")item{Text("Hazard waypoint — do not approach blindly",color=MaterialTheme.colorScheme.error)}
- item{Text(if(fix==null)"GPS unavailable — navigation paused" else if(bearing==null&&near)"Direction uncertain" else if(bearing==null)"Direction uncertain — near target or insufficient accuracy" else if(headingUp&&heading==null)"Compass unavailable — hold phone flat, calibrate away from metal or select North-up" else "GPS FIX • "+if(headingUp)"Heading-up" else "North-up",color=if(bearing==null||reference==null)MaterialTheme.colorScheme.error else accent)}
- item{Box(Modifier.fillMaxWidth().height(180.dp)){
+ item{Text(if(fix==null)"GPS unavailable — navigation paused" else if(bearing==null&&near)"Near target" else if(bearing==null)"Direction uncertain — near target or insufficient accuracy" else if(headingUp&&heading==null)"Compass unavailable — hold phone flat, calibrate away from metal or select North-up" else "GPS FIX • "+if(headingUp)"Heading-up" else "North-up",color=if(bearing==null||reference==null)MaterialTheme.colorScheme.error else accent)}
+ item{Box(Modifier.fillMaxWidth().height(160.dp)){
  Canvas(Modifier.fillMaxSize().padding(24.dp)){
  val r=size.minDimension/2;val c=center
  drawCircle(outline,r,c,style=Stroke(1.dp.toPx()))
@@ -78,7 +78,7 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  if(reference!=null){val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{color=ink.toArgb();textSize=14.dp.toPx();textAlign=android.graphics.Paint.Align.CENTER};listOf(0.0 to "N",90.0 to "E",180.0 to "S",270.0 to "W").forEach{(a,label)->val p=point(relativeHeading(a,reference),1.12f);drawContext.canvas.nativeCanvas.drawText(label,p.x,p.y-(paint.ascent()+paint.descent())/2,paint)}}
  if(relative!=null)drawCircle(ink,3.dp.toPx(),c)
  }
- if(relative==null)Text(if(fix==null)"GPS unavailable" else if(bearing==null)"Direction uncertain" else "Compass unavailable",Modifier.align(Alignment.Center),style=MaterialTheme.typography.bodySmall)
+ if(relative==null&&!near)Text(if(fix==null)"GPS unavailable" else if(bearing==null)"Direction uncertain" else "Compass unavailable",Modifier.align(Alignment.Center),style=MaterialTheme.typography.bodySmall)
  }}
  item{Text("Green: target • White: GPS course. Hold phone flat.")}
  item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
