@@ -26,13 +26,16 @@ import androidx.compose.ui.Alignment
  val context=LocalContext.current
  val dao=remember{TrackDb.get(context).tracks()}
  val tracks by remember{dao.observe()}.collectAsState(initial=emptyList())
+ val health by TrackHealth.state.collectAsState()
+ var clock by remember{mutableLongStateOf(android.os.SystemClock.elapsedRealtime())}
+ LaunchedEffect(Unit){while(true){clock=android.os.SystemClock.elapsedRealtime();kotlinx.coroutines.delay(1000)}}
  val active=tracks.firstOrNull{it.ended==null}
  var selected by remember{mutableStateOf<Long?>(null)}
  var error by remember{mutableStateOf("")}
  val detail=tracks.firstOrNull{it.id==(selected?:active?.id)}
  fun command(action:String){
  if(context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){request();return}
- if(action=="start"&&!context.getSystemService(LocationManager::class.java).isProviderEnabled(LocationManager.GPS_PROVIDER)){error="Enable GPS first";return}
+ if(action in listOf("start","resume","reconnect")&&!context.getSystemService(LocationManager::class.java).isProviderEnabled(LocationManager.GPS_PROVIDER)){error="Enable GPS first";return}
  try{context.startForegroundService(Intent(context,TrackService::class.java).setAction(action));error=""}catch(e:Exception){error="Unable to start recording: "+e.localizedMessage}
  }
  LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(bottom=16.dp)){
@@ -44,7 +47,7 @@ import androidx.compose.ui.Alignment
  OutlinedButton(onClick={command("stop")}){Text("Stop & save")}
  }
  };if(error.isNotEmpty())Text(error,color=MaterialTheme.colorScheme.error)}
- if(active?.state=="recording")item{var recovery by remember{mutableStateOf(false)};TextButton(onClick={recovery=!recovery}){Text("Recording help")};if(recovery){Text("If recording stops updating, reconnect GPS.");OutlinedButton(onClick={command("resume")}){Text("Reconnect GPS")}}}
+ if(active?.state=="recording")item{Text(if(!health.running)"Recording service inactive — reconnect" else if(health.lastFix==0L||clock-health.lastFix>10000L)"Waiting for usable GPS" else "GPS connected");Text("Last fix: "+if(health.lastFix==0L)"—" else ((clock-health.lastFix).coerceAtLeast(0)/1000).toString()+" s ago");Text("GPS accuracy: "+(health.accuracy?.let{"± "+fmtPoint(it.toDouble(),1)+" m"}?:"—"));Text("Session gaps: "+health.gaps+" • "+((health.gapMillis+if(health.waitingSince>0)(clock-health.waitingSince).coerceAtLeast(0) else 0)/1000)+" s");Text("Background service: "+if(health.running)"Active" else "Inactive");val power=context.getSystemService(android.os.PowerManager::class.java);Text("Power saving: "+if(power.isPowerSaveMode)"On" else "Off");Text("Battery optimization: "+if(power.isIgnoringBatteryOptimizations(context.packageName))"Exempt" else "Enabled");TextButton(onClick={runCatching{context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+context.packageName)))}}){Text("App battery settings")};var recovery by remember{mutableStateOf(false)};TextButton(onClick={recovery=!recovery}){Text("Recording help")};if(recovery){Text("If recording stops updating, reconnect GPS.");OutlinedButton(onClick={command("reconnect")}){Text("Reconnect GPS")}}}
  if(detail!=null)item{TrackDetail(detail,dao,unit,speedUnit)}
  item{Text("Saved tracks",style=MaterialTheme.typography.titleMedium)}
  items(tracks.filter{it.ended!=null},key={it.id}){t->OutlinedButton(onClick={selected=t.id},modifier=Modifier.fillMaxWidth()){Text(DateFormat.getDateTimeInstance().format(Date(t.started))+" • "+distanceLabel(t.meters,unit))}}
@@ -68,7 +71,7 @@ internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0
  val origin=points.first()
  val xy=points.map{p-> val delta=((p.lon-origin.lon+540)%360)-180;delta*cos(Math.toRadians(origin.lat)) to p.lat-origin.lat}
  val minX=xy.minOf{it.first};val minY=xy.minOf{it.second}
- val scale=minOf((size.width-48.dp.toPx()).coerceAtLeast(1f)/(xy.maxOf{it.first}-minX).coerceAtLeast(0.000001),(size.height-48.dp.toPx()).coerceAtLeast(1f)/(xy.maxOf{it.second}-minY).coerceAtLeast(0.000001))
+ val scale=minOf((size.width-48.dp.toPx()).coerceAtLeast(1f)/(xy.maxOf{it.first}-minX).coerceAtLeast(0.0002),(size.height-48.dp.toPx()).coerceAtLeast(1f)/(xy.maxOf{it.second}-minY).coerceAtLeast(0.0002))
  val pos=xy.map{Offset(center.x+((it.first-(minX+xy.maxOf{p->p.first})/2)*scale).toFloat(),center.y-((it.second-(minY+xy.maxOf{p->p.second})/2)*scale).toFloat())}
  for(i in 1 until pos.size)if(points[i].segment==points[i-1].segment)drawLine(color,pos[i-1],pos[i],3f)
  drawCircle(Color(0xFF22A65A),5.dp.toPx(),pos.first());drawCircle(Color(0xFFFF9800),4.dp.toPx(),pos.last())

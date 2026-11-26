@@ -19,11 +19,14 @@ internal fun relativeHeading(bearing:Double,heading:Double)=normalizeHeading(bea
 internal fun smoothHeading(previous:Double?,next:Double,alpha:Double=0.25)=normalizeHeading(if(previous==null)next else previous+alpha*relativeHeading(next,previous))
 internal data class HeadingReading(val magnetic:Double,val timestamp:Long,val accuracy:Int)
 
-@Composable internal fun rememberTrueHeading(fix:Location?,enabled:Boolean):Double? {
+internal data class HeadingInfo(val heading:Double?,val status:String)
+@Composable internal fun rememberTrueHeading(fix:Location?,enabled:Boolean):Double? = rememberHeadingInfo(fix,enabled).heading
+@Composable internal fun rememberHeadingInfo(fix:Location?,enabled:Boolean):HeadingInfo {
  val context=LocalContext.current
  val owner=LocalLifecycleOwner.current
  val manager=remember(context){context.getSystemService(android.content.Context.SENSOR_SERVICE) as SensorManager}
  var reading by remember{mutableStateOf<HeadingReading?>(null)}
+ var status by remember{mutableStateOf("Waiting for compass")}
  var now by remember{mutableLongStateOf(SystemClock.elapsedRealtime())}
  LaunchedEffect(enabled){while(enabled){now=SystemClock.elapsedRealtime();delay(250)}}
  DisposableEffect(manager,owner,enabled){
@@ -31,10 +34,10 @@ internal data class HeadingReading(val magnetic:Double,val timestamp:Long,val ac
   var previous:Double?=null
   var quality=SensorManager.SENSOR_STATUS_UNRELIABLE
   val listener=object:SensorEventListener{
-   override fun onAccuracyChanged(sensor:Sensor?,accuracy:Int){quality=accuracy;if(accuracy<SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM){reading=null;previous=null}}
+   override fun onAccuracyChanged(sensor:Sensor?,accuracy:Int){quality=accuracy;if(accuracy<SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM){reading=null;previous=null;status="Low accuracy — calibrate away from metal"}}
    override fun onSensorChanged(event:SensorEvent){
     quality=event.accuracy
-    if(quality<SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM||(event.values.size>=5&&event.values[4]>=0&&event.values[4]>Math.toRadians(25.0))){reading=null;previous=null;return}
+    if(quality<SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM||(event.values.size>=5&&event.values[4]>=0&&event.values[4]>Math.toRadians(25.0))){reading=null;previous=null;status="Low accuracy or excessive tilt";return}
     val matrix=FloatArray(9);val remapped=FloatArray(9);val angles=FloatArray(3)
     SensorManager.getRotationMatrixFromVector(matrix,event.values)
     val display=(context.getSystemService(android.content.Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
@@ -44,8 +47,9 @@ internal data class HeadingReading(val magnetic:Double,val timestamp:Long,val ac
     if(abs(cos(angles[1].toDouble()))<0.25){reading=null;previous=null;return}
     val raw=Math.toDegrees(angles[0].toDouble())
     if(!raw.isFinite())return
-    previous=smoothHeading(previous,raw)
-    reading=HeadingReading(previous!!,SystemClock.elapsedRealtime(),quality)
+    previous=smoothHeading(previous,raw,0.5)
+    status=if(quality==SensorManager.SENSOR_STATUS_ACCURACY_HIGH)"High" else "Medium"
+    reading=HeadingReading(previous!!,event.timestamp/1000000L,quality)
    }
   }
   fun start(){if(enabled&&rotation!=null)manager.registerListener(listener,rotation,SensorManager.SENSOR_DELAY_GAME)}
@@ -55,7 +59,9 @@ internal data class HeadingReading(val magnetic:Double,val timestamp:Long,val ac
   onDispose{owner.lifecycle.removeObserver(observer);stop()}
  }
  val declination=remember(fix?.latitude,fix?.longitude,fix?.altitude){fix?.let{GeomagneticField(it.latitude.toFloat(),it.longitude.toFloat(),it.altitude.toFloat(),System.currentTimeMillis()).declination.toDouble()}}
- return reading?.takeIf{enabled&&now-it.timestamp<=1500&&it.accuracy>=SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM}?.let{v->declination?.let{normalizeHeading(v.magnetic+it)}}
+ val valid=reading?.takeIf{enabled&&SystemClock.elapsedRealtime()-it.timestamp in 0..1500&&it.accuracy>=SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM}
+ val age=now
+ return HeadingInfo(valid?.let{v->declination?.let{normalizeHeading(v.magnetic+it)}},if(!enabled)"North-up" else if(valid==null&&reading!=null&&age-reading!!.timestamp>1500)"Stale compass" else if(valid==null)status else if(declination==null)"Waiting for GPS" else status)
 }
 @Composable internal fun KeepNavigationScreenOn(enabled:Boolean){
  val view=androidx.compose.ui.platform.LocalView.current
