@@ -17,6 +17,9 @@ import java.util.Locale
 import java.text.DateFormat
 import java.util.Date
 import kotlin.math.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import androidx.room.withTransaction
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -30,6 +33,9 @@ import androidx.compose.ui.Alignment
  var clock by remember{mutableLongStateOf(android.os.SystemClock.elapsedRealtime())}
  LaunchedEffect(Unit){while(true){clock=android.os.SystemClock.elapsedRealtime();kotlinx.coroutines.delay(1000)}}
  val active=tracks.firstOrNull{it.ended==null}
+ val scope=rememberCoroutineScope()
+ var selection by remember{mutableStateOf(setOf<Long>())}
+ var bulkDelete by remember{mutableStateOf(false)}
  var selected by remember{mutableStateOf<Long?>(null)}
  var error by remember{mutableStateOf("")}
  val detail=tracks.firstOrNull{it.id==(selected?:active?.id)}
@@ -39,23 +45,26 @@ import androidx.compose.ui.Alignment
  try{context.startForegroundService(Intent(context,TrackService::class.java).setAction(action));error=""}catch(e:Exception){error="Unable to start recording: "+e.localizedMessage}
  }
  Column(Modifier.fillMaxSize()){
- Text("Track recording",style=MaterialTheme.typography.titleLarge);Text(active?.state?.uppercase()?:"READY • Offline")
+ Text(tr("Track recording"),style=MaterialTheme.typography.titleLarge);Text(active?.state?.uppercase()?:"READY • Offline")
  Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
- if(active==null)Button(onClick={selected=null;command("start")}){Text("Record")}
+ if(active==null)Button(onClick={selected=null;command("start")}){Text(tr("Record"))}
  else{
  Button(onClick={command(if(active.state=="paused")"resume" else "pause")}){Text(if(active.state=="paused")"Resume" else "Pause")}
- OutlinedButton(onClick={command("stop")}){Text("Stop & save")}
+ OutlinedButton(onClick={command("stop")}){Text(tr("Stop & save"))}
  }
  };if(error.isNotEmpty())Text(error,color=MaterialTheme.colorScheme.error)
  var diagnostics by remember{mutableStateOf(false)}
  LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(bottom=16.dp)){
- if(active?.state=="recording")item{Text(if(!health.running)"Recording service inactive — reconnect" else if(health.lastFix==0L||clock-health.lastFix>10000L)"Waiting for usable GPS" else "GPS connected");TextButton(onClick={diagnostics=!diagnostics}){Text(if(diagnostics)"Hide GPS diagnostics" else "GPS diagnostics")};if(diagnostics){Text("Last fix: "+if(health.lastFix==0L)"—" else ((clock-health.lastFix).coerceAtLeast(0)/1000).toString()+" s ago");Text("GPS accuracy: "+(health.accuracy?.let{"± "+fmtPoint(it.toDouble(),1)+" m"}?:"—"));Text("Session gaps: "+health.gaps+" • "+((health.gapMillis+if(health.waitingSince>0)(clock-health.waitingSince).coerceAtLeast(0) else 0)/1000)+" s");Text("Background service: "+if(health.running)"Active" else "Inactive");val power=context.getSystemService(android.os.PowerManager::class.java);Text("Power saving: "+if(power.isPowerSaveMode)"On" else "Off");Text("Battery optimization: "+if(power.isIgnoringBatteryOptimizations(context.packageName))"Exempt" else "Enabled");TextButton(onClick={runCatching{context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+context.packageName)))}}){Text("App battery settings")};var recovery by remember{mutableStateOf(false)};TextButton(onClick={recovery=!recovery}){Text("Recording help")};if(recovery||!health.running){Text("If recording stops updating, reconnect GPS.");OutlinedButton(onClick={command("reconnect")}){Text("Reconnect GPS")}}}}
+ if(active?.state=="recording")item{Text(if(!health.running)"Recording service inactive — reconnect" else if(health.lastFix==0L||clock-health.lastFix>10000L)"Waiting for usable GPS" else "GPS connected");TextButton(onClick={diagnostics=!diagnostics}){Text(if(diagnostics)"Hide GPS diagnostics" else "GPS diagnostics")};if(diagnostics){Text("Last fix: "+if(health.lastFix==0L)"—" else ((clock-health.lastFix).coerceAtLeast(0)/1000).toString()+" s ago");Text("GPS accuracy: "+(health.accuracy?.let{"± "+fmtPoint(it.toDouble(),1)+" m"}?:"—"));Text("Session gaps: "+health.gaps+" • "+((health.gapMillis+if(health.waitingSince>0)(clock-health.waitingSince).coerceAtLeast(0) else 0)/1000)+" s");Text("Background service: "+if(health.running)"Active" else "Inactive");val power=context.getSystemService(android.os.PowerManager::class.java);Text("Power saving: "+if(power.isPowerSaveMode)"On" else "Off");Text("Battery optimization: "+if(power.isIgnoringBatteryOptimizations(context.packageName))"Exempt" else "Enabled");TextButton(onClick={runCatching{context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:"+context.packageName)))}}){Text(tr("App battery settings"))};var recovery by remember{mutableStateOf(false)};TextButton(onClick={recovery=!recovery}){Text(tr("Recording help"))};if(recovery||!health.running){Text("If recording stops updating, reconnect GPS.");OutlinedButton(onClick={command("reconnect")}){Text(tr("Reconnect GPS"))}}}}
  if(detail!=null)item{TrackDetail(detail,dao,unit,speedUnit)}
- item{Text("Saved tracks",style=MaterialTheme.typography.titleMedium)}
- items(tracks.filter{it.ended!=null},key={it.id}){t->OutlinedButton(onClick={selected=t.id},modifier=Modifier.fillMaxWidth()){Text(t.name.ifBlank{DateFormat.getDateTimeInstance().format(Date(t.started))}+" • "+distanceLabel(t.meters,unit))}}
+ item{Text(tr("Saved tracks"),style=MaterialTheme.typography.titleMedium)}
+ item{Row{TextButton(onClick={selection=tracks.filter{it.ended!=null}.map{it.id}.toSet()}){Text(tr("Select all"))};TextButton(onClick={selection=emptySet()}){Text(tr("Clear selection"))}}}
+ if(selection.isNotEmpty())item{var data by remember(selection){mutableStateOf<TransferData?>(null)};LaunchedEffect(selection){data=TransferData(emptyList(),tracks.filter{it.id in selection&&it.ended!=null}.map{t->TransferTrack(t.name,dao.points(t.id).first().groupBy{it.segment}.values.map{s->s.map{TransferPoint("",it.lat,it.lon,time=it.time,accuracy=it.accuracy)}},t.started,t.ended,t.activeMillis,t.meters,t.maxSpeed)})};data?.let{SelectionActions(it,{bulkDelete=true})}}
+ items(tracks.filter{it.ended!=null},key={it.id}){t->Row{Checkbox(t.id in selection,{checked->selection=if(checked)selection+t.id else selection-t.id});OutlinedButton(onClick={selected=t.id},modifier=Modifier.fillMaxWidth()){Text(t.name.ifBlank{DateFormat.getDateTimeInstance().format(Date(t.started))}+" • "+distanceLabel(t.meters,unit))}}}
  item{Text("Track sketch only — not a nautical chart. Keep independent navigation equipment.")}
  }
  }
+ if(bulkDelete)AlertDialog(onDismissRequest={bulkDelete=false},title={Text(tr("Confirm deletion"))},confirmButton={TextButton(onClick={bulkDelete=false;scope.launch{TrackDb.get(context).withTransaction{tracks.filter{it.id in selection&&it.ended!=null}.forEach{dao.delete(it)}};selection=emptySet()}}){Text(tr("Delete"))}},dismissButton={TextButton(onClick={bulkDelete=false}){Text(tr("Cancel"))}})
 }
 internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0;val base=10.0.pow(floor(log10(max)));return base*(listOf(1.0,2.0,5.0).lastOrNull{it<=max/base}?:0.5)}
 @Composable private fun TrackDetail(t:Track,dao:TrackDao,unit:String,speedUnit:String){
