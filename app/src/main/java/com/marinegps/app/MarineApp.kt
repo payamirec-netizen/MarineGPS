@@ -60,6 +60,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
 @Composable fun MarineApp(s:GnssState,request:()->Unit,settings:()->Unit){
  val context=LocalContext.current
  val prefs=remember{context.getSharedPreferences("marine_settings",0)}
+ var routesOpen by rememberSaveable{mutableStateOf(false)}
  var dataOpen by rememberSaveable{mutableStateOf(false)}
  var tab by rememberSaveable{mutableIntStateOf(0)}
  var targetId by rememberSaveable{mutableStateOf<Long?>(null)}
@@ -87,7 +88,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  0->MarineDashboard(s,units,format,request,settings)
  1->SignalScreen(s,usedOnly,{usedOnly=it})
  2->SkyScreen(s,usedOnly,{usedOnly=it})
- 4->if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units){targetId=null} else if(dataOpen)DataScreen{dataOpen=false}else WaypointScreen(s,distance,format,{dataOpen=true}){targetId=it.id}
+ 4->if(routesOpen) RouteScreen(s,distance){routesOpen=false} else if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units){targetId=null} else if(dataOpen)DataScreen{dataOpen=false}else {TextButton(onClick={routesOpen=true}){Text(if(arabic)"المسارات الملاحية والعودة" else "Routes & TrackBack")};WaypointScreen(s,distance,format,{dataOpen=true}){targetId=it.id}}
  3->if(dataOpen) DataScreen{dataOpen=false} else LazyColumn(verticalArrangement=Arrangement.spacedBy(4.dp)){
  item{CompactSetting("Language",listOf("system","ar","en"),language,{language=it;prefs.edit().putString("language",it).apply()})}
  item{CompactSetting("Speed units",listOf("kn","km/h","m/s"),units,{units=it;prefs.edit().putString("speed",it).apply()})}
