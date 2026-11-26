@@ -4,13 +4,13 @@ import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Element
 import java.io.ByteArrayInputStream
 
-internal data class TransferPoint(val name:String,val lat:Double,val lon:Double,val notes:String="")
-internal data class TransferTrack(val name:String,val segments:List<List<TransferPoint>>)
-internal data class TransferData(val points:List<TransferPoint>,val tracks:List<TransferTrack>)
+internal data class TransferPoint(val name:String,val lat:Double,val lon:Double,val notes:String="",val time:Long?=null,val category:String="Other",val accuracy:Float?=null)
+internal data class TransferTrack(val name:String,val segments:List<List<TransferPoint>>,val started:Long?=null,val ended:Long?=null,val activeMillis:Long=0,val meters:Double?=null,val maxSpeed:Double=0.0)
+internal data class TransferData(val points:List<TransferPoint>,val tracks:List<TransferTrack>,val settings:Map<String,String> = emptyMap())
 internal fun xml(s:String)=s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;").replace("'","&apos;")
 internal fun gpx(d:TransferData)=buildString {
  append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><gpx version=\"1.1\" creator=\"MarineGPS\" xmlns=\"http://www.topografix.com/GPX/1/1\">")
- fun point(tag:String,p:TransferPoint){require(validCoordinates(p.lat,p.lon));append("<$tag lat=\"${p.lat}\" lon=\"${p.lon}\"><name>${xml(p.name)}</name><desc>${xml(p.notes)}</desc></$tag>")}
+ fun point(tag:String,p:TransferPoint){require(validCoordinates(p.lat,p.lon));append("<$tag lat=\"${p.lat}\" lon=\"${p.lon}\">${p.time?.let{"<time>"+Instant.ofEpochMilli(it)+"</time>"}.orEmpty()}<name>${xml(p.name)}</name><desc>${xml(p.notes)}</desc></$tag>")}
  d.points.forEach{point("wpt",it)}
  d.tracks.forEach{t->append("<trk><name>${xml(t.name)}</name>");t.segments.forEach{s->append("<trkseg>");s.forEach{point("trkpt",it)};append("</trkseg>")};append("</trk>")}
  append("</gpx>")
@@ -22,7 +22,7 @@ internal fun parseGpx(raw:String):TransferData {
  require(root.localName=="gpx")
  fun children(e:Element,n:String)= (0 until e.childNodes.length).mapNotNull{e.childNodes.item(it) as? Element}.filter{it.localName==n}
  fun value(e:Element,n:String)=children(e,n).firstOrNull()?.textContent.orEmpty()
- fun point(e:Element):TransferPoint {val lat=e.getAttribute("lat").toDouble();val lon=e.getAttribute("lon").toDouble();require(validCoordinates(lat,lon));return TransferPoint(value(e,"name").take(200),lat,lon,value(e,"desc").take(4000))}
+ fun point(e:Element):TransferPoint {val lat=e.getAttribute("lat").toDouble();val lon=e.getAttribute("lon").toDouble();require(validCoordinates(lat,lon));return TransferPoint(value(e,"name").take(200),lat,lon,value(e,"desc").take(4000),value(e,"time").takeIf{it.isNotBlank()}?.let{Instant.parse(it).toEpochMilli()})}
  return TransferData(children(root,"wpt").map{point(it)},children(root,"trk").map{t->TransferTrack(value(t,"name"),children(t,"trkseg").map{s->children(s,"trkpt").map{point(it)}})})
 }
 internal fun csv(d:TransferData)=buildString {

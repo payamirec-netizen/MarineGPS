@@ -4,7 +4,7 @@ import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName="tracks")
-data class Track(@PrimaryKey(autoGenerate=true) val id:Long=0,val started:Long,val ended:Long?=null,val activeMillis:Long=0,val meters:Double=0.0,val maxSpeed:Double=0.0,val state:String="recording")
+data class Track(@PrimaryKey(autoGenerate=true) val id:Long=0,val started:Long,val ended:Long?=null,val activeMillis:Long=0,val meters:Double=0.0,val maxSpeed:Double=0.0,val state:String="recording",@ColumnInfo(defaultValue="''") val name:String="")
 @Entity(tableName="track_points",foreignKeys=[ForeignKey(entity=Track::class,parentColumns=["id"],childColumns=["trackId"],onDelete=ForeignKey.CASCADE)],indices=[Index("trackId")])
 data class TrackPoint(@PrimaryKey(autoGenerate=true) val id:Long=0,val trackId:Long,val time:Long,val lat:Double,val lon:Double,val accuracy:Float,val segment:Long)
 @Dao interface TrackDao {
@@ -14,13 +14,15 @@ data class TrackPoint(@PrimaryKey(autoGenerate=true) val id:Long=0,val trackId:L
  @Insert suspend fun insert(t:Track):Long
  @Insert suspend fun point(p:TrackPoint)
  @Update suspend fun update(t:Track)
+ @Delete suspend fun delete(t:Track)
 }
-@Database(entities=[Track::class,TrackPoint::class],version=1,exportSchema=false)
+@Database(entities=[Track::class,TrackPoint::class],version=2,exportSchema=false)
 abstract class TrackDb:RoomDatabase(){
  abstract fun tracks():TrackDao
  companion object {
+  private val migration=object:androidx.room.migration.Migration(1,2){override fun migrate(db:androidx.sqlite.db.SupportSQLiteDatabase){db.execSQL("ALTER TABLE tracks ADD COLUMN name TEXT NOT NULL DEFAULT ''")}}
  @Volatile private var instance:TrackDb?=null
- fun get(c:Context):TrackDb=instance?:synchronized(this){instance?:Room.databaseBuilder(c.applicationContext,TrackDb::class.java,"marine_tracks.db").build().also{instance=it}}
+ fun get(c:Context):TrackDb=instance?:synchronized(this){instance?:Room.databaseBuilder(c.applicationContext,TrackDb::class.java,"marine_tracks.db").addMigrations(migration).build().also{instance=it}}
  }
 }
 internal fun trackStep(lat:Double,lon:Double,nextLat:Double,nextLon:Double,seconds:Double,accuracy:Double):Double {
