@@ -42,17 +42,17 @@ internal data class HeadingInfo(val heading:Double?,val status:String)
     SensorManager.getRotationMatrixFromVector(matrix,event.values)
     val display=(context.getSystemService(android.content.Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
     val axes=when(display){Surface.ROTATION_90->SensorManager.AXIS_Y to SensorManager.AXIS_MINUS_X;Surface.ROTATION_180->SensorManager.AXIS_MINUS_X to SensorManager.AXIS_MINUS_Y;Surface.ROTATION_270->SensorManager.AXIS_MINUS_Y to SensorManager.AXIS_X;else->SensorManager.AXIS_X to SensorManager.AXIS_Y}
-    if(!SensorManager.remapCoordinateSystem(matrix,axes.first,axes.second,remapped))return
+    if(!SensorManager.remapCoordinateSystem(matrix,axes.first,axes.second,remapped)){reading=null;status="Orientation unavailable";return}
     SensorManager.getOrientation(remapped,angles)
-    if(abs(cos(angles[1].toDouble()))<0.25){reading=null;previous=null;return}
+    if(abs(cos(angles[1].toDouble()))<0.25){reading=null;previous=null;status="Hold phone flatter";return}
     val raw=Math.toDegrees(angles[0].toDouble())
-    if(!raw.isFinite())return
+    if(!raw.isFinite()){reading=null;status="Invalid sensor reading";return}
     previous=smoothHeading(previous,raw,0.5)
     status=if(quality==SensorManager.SENSOR_STATUS_ACCURACY_HIGH)"High" else "Medium"
     reading=HeadingReading(previous!!,event.timestamp/1000000L,quality)
    }
   }
-  fun start(){if(enabled&&rotation!=null)manager.registerListener(listener,rotation,SensorManager.SENSOR_DELAY_GAME)}
+  fun start(){if(enabled){status=when{rotation==null->"Rotation sensor unavailable";manager.registerListener(listener,rotation,SensorManager.SENSOR_DELAY_GAME)->"Waiting for compass";else->"Sensor registration failed"}}}
   fun stop(){manager.unregisterListener(listener);reading=null;previous=null}
   val observer=LifecycleEventObserver{_,event->when(event){Lifecycle.Event.ON_RESUME->start();Lifecycle.Event.ON_PAUSE->stop();else->Unit}}
   owner.lifecycle.addObserver(observer)
