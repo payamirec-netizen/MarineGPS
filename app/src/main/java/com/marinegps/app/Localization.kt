@@ -185,7 +185,35 @@ private val translations=mapOf("Dashboard" to "الرئيسية",
 "Share MarineGPS" to "مشاركة MarineGPS",
 "Back to locations" to "رجوع للمواقع",
 "Native GNSS" to "تحديد الموقع بالأقمار",
-"Offline GNSS" to "تحديد الموقع دون إنترنت")
-internal fun translateText(s:String,arabic:Boolean):String=if(arabic)translations[s]?:s else s
+"Offline GNSS" to "تحديد الموقع دون إنترنت","Enable location in Android settings" to "فعّل الموقع من إعدادات أندرويد",
+"saved waypoints" to "المواقع المحفوظة",
+"Selected" to "المحدد",
+"signal" to "إشارة",
+"signals" to "إشارات",
+"satellite" to "قمر",
+"satellites" to "أقمار",
+"Az" to "السمت",
+"El" to "الارتفاع",
+"Unknown band" to "نطاق غير معروف",
+"kn" to "عقدة",
+"km/h" to "كم/س",
+"m/s" to "م/ث",
+"NM" to "ميل بحري",
+"km" to "كم",
+"mi" to "ميل",
+"Track" to "مسار",
+"Existing data will not be deleted." to "لن تُحذف البيانات الحالية.",
+"waypoints" to "مواقع",
+"tracks" to "مسارات",
+"Unable to start recording: " to "تعذر بدء التسجيل: ",
+"Navigating to • " to "الملاحة إلى • ",
+"SOG: " to "السرعة الأرضية: ",
+"COG true: " to "اتجاه الحركة الحقيقي: ",
+"Imported waypoint" to "موقع مستورد",
+"Back" to "رجوع")
+internal fun translateText(s:String,arabic:Boolean):String=if(arabic)translations[s]?:translations.entries.firstOrNull{it.key.endsWith(": ")&&s.startsWith(it.key)}?.let{it.value+s.removePrefix(it.key)}?:s else s
 internal fun appArabic(c:android.content.Context):Boolean {val v=c.getSharedPreferences("marine_settings",0).getString("language","system");return v=="ar"||(v=="system"&&java.util.Locale.getDefault().language=="ar")}
-@Composable internal fun tr(s:String):String=if(LocalArabic.current)translations[s]?:s else s
+@Composable internal fun tr(s:String):String=translateText(s,LocalArabic.current)
+
+internal fun ltrValue(s:String)="\u2066"+s+"\u2069"
+@Composable internal fun localDate(ms:Long):String=java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM,java.text.DateFormat.SHORT,if(LocalArabic.current)java.util.Locale("ar") else java.util.Locale.ENGLISH).format(java.util.Date(ms))

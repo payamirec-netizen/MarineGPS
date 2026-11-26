@@ -77,7 +77,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  val dark=when(appearance){"Dark"->true;"Light"->false;else->isSystemInDarkTheme()}
  CompositionLocalProvider(LocalArabic provides arabic,androidx.compose.ui.platform.LocalLayoutDirection provides if(arabic) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr){
  MaterialTheme(colorScheme=if(dark)darkColorScheme(primary=Color(0xFF65DBC0),secondaryContainer=Color(0xFF204C47))else lightColorScheme(primary=Color(0xFF006B59),secondaryContainer=Color(0xFFB5EBDD))){
- Scaffold(bottomBar={NavigationBar{labels.forEachIndexed{i,label->NavigationBarItem(selected=tab==i,onClick={tab=i;dataOpen=false},icon={NavGlyph(i)},label={Text(tr(label),fontSize=9.sp,maxLines=1,softWrap=false)})}}}){padding->
+ Scaffold(bottomBar={NavigationBar{labels.forEachIndexed{i,label->NavigationBarItem(selected=tab==i,onClick={tab=i;dataOpen=false},icon={NavGlyph(i)},label={Text(tr(label),fontSize=10.sp,maxLines=1,softWrap=false)})}}}){padding->
  Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp)){
  Text("Marine GPS",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(top=12.dp))
  Text((if(tab==4&&target!=null)"Navigation" else labels[tab]).let{tr(it)}+" • "+tr("Native GNSS"),color=MaterialTheme.colorScheme.primary)
@@ -89,19 +89,15 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  2->SkyScreen(s,usedOnly,{usedOnly=it})
  4->if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units){targetId=null} else if(dataOpen)DataScreen{dataOpen=false}else WaypointScreen(s,distance,format,{dataOpen=true}){targetId=it.id}
  3->if(dataOpen) DataScreen{dataOpen=false} else LazyColumn(verticalArrangement=Arrangement.spacedBy(4.dp)){
- item{Text(tr("Language"));listOf("system","ar","en").forEach{l->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(language==l,{language=l;prefs.edit().putString("language",l).apply()});Text(when(l){"ar"->"العربية";"en"->"English";else->tr("System")})}}}
- item{Text(tr("Speed units"),style=MaterialTheme.typography.titleMedium)}
- items(listOf("kn","km/h","m/s")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=units==u,onClick={units=u;prefs.edit().putString("speed",u).apply()});Text(tr(u))}}
- item{Text(tr("Distance units"),style=MaterialTheme.typography.titleMedium)}
- items(listOf("NM","km","mi")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=distance==u,onClick={distance=u;prefs.edit().putString("distance",u).apply()});Text(tr(u))}}
- item{Text(tr("Appearance"),style=MaterialTheme.typography.titleMedium)}
- items(listOf("System","Light","Dark")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=appearance==u,onClick={appearance=u;prefs.edit().putString("appearance",u).apply()});Text(tr(u))}}
- item{Text(tr("Coordinate format"),style=MaterialTheme.typography.titleMedium)}
- items(listOf("DD","DDM","DMS")){u->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(selected=format==u,onClick={format=u;prefs.edit().putString("coordinates",u).apply()});Text(tr(u))}}
+ item{CompactSetting("Language",listOf("system","ar","en"),language,{language=it;prefs.edit().putString("language",it).apply()})}
+ item{CompactSetting("Speed units",listOf("kn","km/h","m/s"),units,{units=it;prefs.edit().putString("speed",it).apply()})}
+ item{CompactSetting("Distance units",listOf("NM","km","mi"),distance,{distance=it;prefs.edit().putString("distance",it).apply()})}
+ item{CompactSetting("Appearance",listOf("System","Light","Dark"),appearance,{appearance=it;prefs.edit().putString("appearance",it).apply()})}
+ item{CompactSetting("Coordinate format",listOf("DD","DDM","DMS"),format,{format=it;prefs.edit().putString("coordinates",it).apply()})}
  item{Button(onClick=request){Text(tr("Location permission"))}}
  item{OutlinedButton(onClick=settings){Text(tr("Android location settings"))}}
  item{Button(onClick={dataOpen=true}){Text(tr("Data management"))}}
- item{Text("0.6.1 • "+tr("Offline GNSS"))}
+ item{Text("0.6.2 • "+tr("Offline GNSS"))}
  item{Text(tr("Experimental navigation aid. Not a certified marine instrument."))}
  }
  }
@@ -128,22 +124,22 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  item{Text(tr("First fix: ")+(s.ttff?.let{number(it/1000.0)+" s"}?:"—"))}
  }
 }
-@Composable private fun DataCard(label:String,value:String){Card(Modifier.fillMaxWidth()){Column(Modifier.padding(8.dp)){Text(tr(label),style=MaterialTheme.typography.bodySmall);Text(value,fontSize=20.sp)}}}
+@Composable private fun DataCard(label:String,value:String){Card(Modifier.fillMaxWidth()){Column(Modifier.padding(8.dp)){Text(tr(label),style=MaterialTheme.typography.bodySmall);Text(if(label=="Coordinates")ltrValue(value) else value,fontSize=20.sp)}}}
 @Composable private fun Filter(usedOnly:Boolean,change:(Boolean)->Unit){Row(verticalAlignment=Alignment.CenterVertically){Text(tr("Used satellites only"),Modifier.weight(1f));Switch(checked=usedOnly,onCheckedChange=change)}}
 @Composable private fun SignalScreen(s:GnssState,usedOnly:Boolean,change:(Boolean)->Unit){
  val rows=groups(s).filter{!usedOnly||it.any{v->v.used}}.sortedByDescending{g->g.maxOf{it.cn0}}
  Filter(usedOnly,change)
- Text("Satellites: ${groups(s).count{g->g.any{it.used}}} used / ${groups(s).size} visible")
- Text("Signals: ${s.satellites.count{it.used}} used / ${s.satellites.size} reported")
+ Text(tr("Satellites: ")+groups(s).count{g->g.any{it.used}}+" "+tr("used")+" / "+groups(s).size+" "+tr("visible"))
+ Text(tr("Signals: ")+s.satellites.count{it.used}+" "+tr("used")+" / "+s.satellites.size+" "+tr("reported"))
  if(rows.isEmpty())Text(tr("Waiting for satellite signals"))
  LazyColumn(verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(vertical=12.dp)){
  items(rows){group->Column{
  val first=group.first()
- Text(constellationName(first.system)+" "+first.id+" · "+group.size+if(group.size==1)" signal" else " signals",style=MaterialTheme.typography.titleMedium)
+ Text(constellationName(first.system)+" "+first.id+" · "+group.size+" "+tr(if(group.size==1)"signal" else "signals"),style=MaterialTheme.typography.titleMedium)
  group.sortedByDescending{it.cn0}.forEach{sat->
  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(band(sat)+if(sat.used)" ✓" else "");Text(number(sat.cn0.toDouble())+" dB-Hz")}
  Canvas(Modifier.fillMaxWidth().height(8.dp)){drawRoundRect(color=Color.Gray.copy(alpha=0.25f),cornerRadius=androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()));drawRoundRect(color=satColor(sat.system),size=androidx.compose.ui.geometry.Size(size.width*(sat.cn0/60f).coerceIn(0f,1f),size.height),cornerRadius=androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))}
- Text("Az "+number(sat.azimuth.toDouble(),0)+"° · El "+number(sat.elevation.toDouble(),0)+"°"+(sat.frequency?.let{" · "+number(it/1e6)+" MHz"}?:""),style=MaterialTheme.typography.bodySmall)
+ Text(tr("Az")+" "+number(sat.azimuth.toDouble(),0)+"° · "+tr("El")+" "+number(sat.elevation.toDouble(),0)+"°"+(sat.frequency?.let{" · "+number(it/1e6)+" MHz"}?:""),style=MaterialTheme.typography.bodySmall)
  }}}
  }
 }
@@ -179,6 +175,8 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  }}}
  item{Text(tr("Outlined dots = used in fix. Lines connect labels to true positions. Center = zenith."))}
  if(rows.isEmpty())item{Text(tr("Waiting for satellite positions"))}
- items(rows.groupBy{it.system}.entries.toList()){entry->Row(verticalAlignment=Alignment.CenterVertically){Canvas(Modifier.size(16.dp)){drawCircle(satColor(entry.key))};Spacer(Modifier.width(8.dp));Text(constellationName(entry.key)+" · "+entry.value.size+if(entry.value.size==1)" satellite" else " satellites")}}
+ items(rows.groupBy{it.system}.entries.toList()){entry->Row(verticalAlignment=Alignment.CenterVertically){Canvas(Modifier.size(16.dp)){drawCircle(satColor(entry.key))};Spacer(Modifier.width(8.dp));Text(constellationName(entry.key)+" · "+entry.value.size+" "+tr(if(entry.value.size==1)"satellite" else "satellites"))}}
  }
 }
+
+@Composable private fun CompactSetting(title:String,options:List<String>,selected:String,change:(String)->Unit){Column(verticalArrangement=Arrangement.spacedBy(2.dp)){Text(tr(title),style=MaterialTheme.typography.titleMedium);Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){options.forEach{v->FilterChip(selected==v,{change(v)},label={Text(when(v){"ar"->"العربية";"en"->"English";"system"->tr("System");else->tr(v)},maxLines=2)},modifier=Modifier.weight(1f))}}}}

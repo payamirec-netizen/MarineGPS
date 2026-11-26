@@ -44,19 +44,19 @@ internal fun fmtPoint(v:Double,n:Int)=String.format(Locale.US,"%."+n+"f",v)
  if(fix==null)item{Text(tr("Waiting for a fresh GPS fix"),color=MaterialTheme.colorScheme.error)}
  if(error.isNotEmpty())item{Text(tr(error),color=MaterialTheme.colorScheme.error)}
  item{OutlinedTextField(search,{search=it},label={Text(tr("Search waypoints"))},singleLine=true,modifier=Modifier.fillMaxWidth())}
- item{TextButton(onClick=importData){Text(tr("Import locations"))};Box{OutlinedButton(onClick={categoryMenu=true}){Text(tr(categoryFilter.ifBlank{"All categories"}))};DropdownMenu(categoryMenu,{categoryMenu=false}){(listOf("")+categories).forEach{v->DropdownMenuItem(text={Text(tr(v.ifBlank{"All categories"}))},onClick={categoryFilter=v;categoryMenu=false})}}}}
+ item{Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()){TextButton(onClick=importData){Text(tr("Import locations"))};Box{OutlinedButton(onClick={categoryMenu=true}){Text(tr(categoryFilter.ifBlank{"All categories"}))};DropdownMenu(categoryMenu,{categoryMenu=false}){(listOf("")+categories).forEach{v->DropdownMenuItem(text={Text(tr(v.ifBlank{"All categories"}))},onClick={categoryFilter=v;categoryMenu=false})}}}}}
  item{Row{TextButton(onClick={selection=points.map{it.id}.toSet()}){Text(tr("Select all"))};TextButton(onClick={selection=emptySet()}){Text(tr("Clear selection"))}}}
  if(picked.isNotEmpty())item{SelectionActions(TransferData(picked.map{TransferPoint(it.name,it.latitude,it.longitude,it.notes,it.createdAt,it.category,it.accuracy)},emptyList()),{bulkDelete=true})}
- item{Text("${points.size} saved waypoints")}
+ item{Text(tr("saved waypoints")+" • "+points.size)}
  val filtered=points.filter{(categoryFilter.isEmpty()||it.category==categoryFilter)&&(it.name.contains(search,true)||it.category.contains(search,true)||it.notes.contains(search,true))}
  if(filtered.isEmpty())item{Text(tr("No matching waypoints"))}
- items(filtered,key={it.id}){p->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+ items(filtered,key={it.id}){p->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(8.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){
  Row{Checkbox(p.id in selection,{checked->selection=if(checked)selection+p.id else selection-p.id});Text(p.name,style=MaterialTheme.typography.titleLarge,color=if(p.category=="Hazard")MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)}
- Text((if(p.category=="Hazard")"⚠ " else "")+tr(p.category)+" · "+coordinate(p.latitude,true,format)+" / "+coordinate(p.longitude,false,format))
- p.accuracy?.let{Text(tr("Saved GPS accuracy: ± ")+fmtPoint(it.toDouble(),1)+" m")}
+ Text((if(p.category=="Hazard")"⚠ " else "")+tr(p.category));Text(ltrValue(coordinate(p.latitude,true,format)+" / "+coordinate(p.longitude,false,format)))
+ p.accuracy?.let{Text(tr("Saved GPS accuracy: ± ")+ltrValue(fmtPoint(it.toDouble(),1)+" m"))}
  if(p.notes.isNotBlank())Text(p.notes)
- if(fix!=null){val m=targetMetrics(fix.latitude,fix.longitude,p.latitude,p.longitude);val reliable=usableBearing(m,fix.takeIf{it.hasAccuracy()}?.accuracy,p.accuracy);Text(distanceLabel(m.meters,unit)+" · Bearing true: "+(reliable?.let{fmtPoint(it,1)+"°"}?:"Uncertain"))}else Text(tr("Distance / bearing unavailable"))
- Row{TextButton(onClick={navigate(p)},enabled=!busy){Text(tr("Navigate"))};TextButton(onClick={edit=p},enabled=!busy){Text(tr("Edit"))};TextButton(onClick={remove=p},enabled=!busy){Text(tr("Delete"))}}
+ if(fix!=null){val m=targetMetrics(fix.latitude,fix.longitude,p.latitude,p.longitude);val reliable=usableBearing(m,fix.takeIf{it.hasAccuracy()}?.accuracy,p.accuracy);Text(distanceLabel(m.meters,unit)+" · "+tr("Bearing true: ")+(reliable?.let{fmtPoint(it,1)+"°"}?:tr("Uncertain")))}else Text(tr("Distance / bearing unavailable"))
+ if(selection.isEmpty())Row{TextButton(onClick={navigate(p)},enabled=!busy){Text(tr("Navigate"))};TextButton(onClick={edit=p},enabled=!busy){Text(tr("Edit"))};TextButton(onClick={remove=p},enabled=!busy){Text(tr("Delete"))}}
  }}}
  }
  if(bulkDelete)AlertDialog(onDismissRequest={bulkDelete=false},title={Text(tr("Confirm deletion"))},text={Text(picked.size.toString())},confirmButton={TextButton(onClick={bulkDelete=false;scope.launch{WaypointDb.get(context).withTransaction{picked.forEach{dao.delete(it)}};selection=emptySet()}}){Text(tr("Delete"))}},dismissButton={TextButton(onClick={bulkDelete=false}){Text(tr("Cancel"))}})
