@@ -1,0 +1,19 @@
+name: Yemen wreck research
+on:
+  push:
+    branches: [research/yemen-shipwrecks]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 research/wrecks.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: yemen-wreck-research
+          path: wreck-results/
