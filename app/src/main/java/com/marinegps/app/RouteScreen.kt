@@ -17,7 +17,7 @@ internal fun routeXte(a:RouteVertex,b:RouteVertex,p:RouteVertex):Double {
  return asin((sin(ap.meters/6371000.0)*sin(Math.toRadians(ap.bearing!!-ab.bearing!!))).coerceIn(-1.0,1.0))*6371000.0
 }
 @Composable internal fun RouteScreen(s:GnssState,unit:String,back:()->Unit){
- KeepNavigationScreenOn()
+ KeepNavigationScreenOn(true)
  val c=LocalContext.current;val scope=rememberCoroutineScope();val ar=LocalArabic.current
  val wd=remember{WaypointDb.get(c).points()};val td=remember{TrackDb.get(c).tracks()}
  val points by wd.observe().collectAsState(initial=emptyList());val tracks by td.observe().collectAsState(initial=emptyList())
@@ -33,6 +33,8 @@ internal fun routeXte(a:RouteVertex,b:RouteVertex,p:RouteVertex):Double {
  val current=fix?.let{RouteVertex(it.latitude,it.longitude)}
  val target=route.getOrNull(index)
  val metrics=if(current!=null&&target!=null)targetMetrics(current.lat,current.lon,target.lat,target.lon)else null
+ val deviation=if(index>0&&current!=null&&target!=null)abs(routeXte(route[index-1],target,current))else 0.0
+ LaunchedEffect(deviation,running){if(running&&deviation>50&&!alert){alert=true;tone?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2,250)}else if(!running||deviation<30)alert=false}
  LaunchedEffect(fix?.elapsedRealtimeNanos,running,index){if(running&&metrics!=null&&fix!=null&&metrics.meters<=maxOf(15.0,fix.accuracy.toDouble()*2)){tone?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP,180);if(index==route.lastIndex){running=false;notice=if(ar)"قرب نهاية المسار، تحقق بصرياً" else "Near route end; verify visually"}else{index++;notice=if(ar)"قرب النقطة السابقة، انتقل للتي تليها" else "Near waypoint; next leg"}}}
  LazyColumn(verticalArrangement=Arrangement.spacedBy(6.dp)){
  item{TextButton(onClick=back){Text(if(ar)"رجوع" else "Back")};Text(if(ar)"المسارات الملاحية" else "Routes",style=MaterialTheme.typography.titleLarge)}
@@ -40,7 +42,7 @@ internal fun routeXte(a:RouteVertex,b:RouteVertex,p:RouteVertex):Double {
  if(gaps)item{Text(if(ar)"المسار المسجل متعدد المقاطع: لا يتم وصل الفجوات تلقائياً." else "Recorded track has gaps; segments are not joined.",color=MaterialTheme.colorScheme.error)}
  if(!running&&pending.isNotEmpty())item{Button(onClick={route=pending.first();pending=pending.drop(1);index=0;notice="";running=true}){Text(if(ar)"بدء المقطع التالي بعد التحقق من الطريق" else "Start next segment after verifying safe passage")}}
  if(!running)item{Row{TextButton(enabled=route.isNotEmpty()&&!gaps,onClick={prefs.edit().putString("route",encodeRoute(route)).apply();notice=if(ar)"تم حفظ المسار" else "Route saved"}){Text(if(ar)"حفظ" else "Save")};TextButton(enabled=route.isNotEmpty(),onClick={val data=TransferData(emptyList(),listOf(TransferTrack("Route",listOf(route.map{TransferPoint("",it.lat,it.lon,"")}))));val intent=android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT,gpx(data));c.startActivity(android.content.Intent.createChooser(intent,null))}){Text(if(ar)"مشاركة GPX" else "Share GPX")}}}
- if(running||notice.isNotEmpty())item{Text(notice);Text((if(ar)"النقطة " else "Waypoint ")+(index+1)+"/"+route.size);Text(ltrValue(metrics?.let{distanceLabel(it.meters,unit)}?:"—"));Text(ltrValue(metrics?.bearing?.let{String.format(java.util.Locale.US,"%.1f°",it)}?:"—"));Text((if(ar)"المتبقي: " else "Remaining: ")+(current?.let{routeRemaining(it,route,index)}?.let{ltrValue(distanceLabel(it,unit))}?:"—"));if(index>0&&current!=null&&target!=null)Text("XTE: "+ltrValue(distanceLabel(abs(routeXte(route[index-1],target,current)),unit)))}
+ if(running||notice.isNotEmpty())item{if(alert)Text(if(ar)"انحراف عن المسار" else "Off route",color=MaterialTheme.colorScheme.error);Text(notice);Text((if(ar)"النقطة " else "Waypoint ")+(index+1)+"/"+route.size);Text(ltrValue(metrics?.let{distanceLabel(it.meters,unit)}?:"—"));Text(ltrValue(metrics?.bearing?.let{String.format(java.util.Locale.US,"%.1f°",it)}?:"—"));Text((if(ar)"المتبقي: " else "Remaining: ")+(current?.let{routeRemaining(it,route,index)}?.let{ltrValue(distanceLabel(it,unit))}?:"—"));if(index>0&&current!=null&&target!=null)Text("XTE: "+ltrValue(distanceLabel(abs(routeXte(route[index-1],target,current)),unit)))}
  if(!running){item{Text(if(ar)"أضف المواقع بالترتيب المطلوب" else "Add waypoints in order")};items(points){p->TextButton(onClick={route=route+RouteVertex(p.latitude,p.longitude);pending=emptyList();gaps=false}){Text("+ "+p.name)}};item{Text("TrackBack")};items(tracks.filter{it.ended!=null}){t->TextButton(onClick={scope.launch{val seg=td.points(t.id).first().groupBy{it.segment}.values.toList();val reversed=reverseTrackSegments(seg.map{part->part.map{RouteVertex(it.lat,it.lon)}}).filter{it.isNotEmpty()};gaps=reversed.size>1;route=reversed.firstOrNull()?:emptyList();pending=reversed.drop(1);index=0;notice=""}}){Text(t.name.ifBlank{localDate(t.started)})}}}
  item{Text(if(ar)"رسم ملاحي مساعد فقط، لا يكشف العوائق." else "Navigation aid only; does not detect hazards.")}
  }
