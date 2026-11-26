@@ -17,23 +17,31 @@ internal fun routeXte(a:RouteVertex,b:RouteVertex,p:RouteVertex):Double {
  return asin((sin(ap.meters/6371000.0)*sin(Math.toRadians(ap.bearing!!-ab.bearing!!))).coerceIn(-1.0,1.0))*6371000.0
 }
 @Composable internal fun RouteScreen(s:GnssState,unit:String,back:()->Unit){
+ KeepNavigationScreenOn()
  val c=LocalContext.current;val scope=rememberCoroutineScope();val ar=LocalArabic.current
  val wd=remember{WaypointDb.get(c).points()};val td=remember{TrackDb.get(c).tracks()}
  val points by wd.observe().collectAsState(initial=emptyList());val tracks by td.observe().collectAsState(initial=emptyList())
- var route by remember{mutableStateOf<List<RouteVertex>>(emptyList())}
+ val prefs=remember{c.getSharedPreferences("marine_routes",0)}
+ var route by remember{mutableStateOf(decodeRoute(prefs.getString("route","")?:""))}
+ var pending by remember{mutableStateOf<List<List<RouteVertex>>>(emptyList())}
+ var alert by remember{mutableStateOf(false)}
+ val tone=remember{runCatching{android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION,70)}.getOrNull()}
+ DisposableEffect(tone){onDispose{tone?.release()}}
  var index by remember{mutableIntStateOf(0)};var running by remember{mutableStateOf(false)}
  var notice by remember{mutableStateOf("")};var gaps by remember{mutableStateOf(false)}
  val fix=s.location?.takeIf{freshFix(s.now-it.elapsedRealtimeNanos/1000000)&&it.hasAccuracy()&&it.accuracy<=30f}
  val current=fix?.let{RouteVertex(it.latitude,it.longitude)}
  val target=route.getOrNull(index)
  val metrics=if(current!=null&&target!=null)targetMetrics(current.lat,current.lon,target.lat,target.lon)else null
- LaunchedEffect(fix?.elapsedRealtimeNanos,running,index){if(running&&metrics!=null&&fix!=null&&metrics.meters<=maxOf(15.0,fix.accuracy.toDouble()*2)){if(index==route.lastIndex){running=false;notice=if(ar)"قرب نهاية المسار، تحقق بصرياً" else "Near route end; verify visually"}else{index++;notice=if(ar)"قرب النقطة السابقة، انتقل للتي تليها" else "Near waypoint; next leg"}}}
+ LaunchedEffect(fix?.elapsedRealtimeNanos,running,index){if(running&&metrics!=null&&fix!=null&&metrics.meters<=maxOf(15.0,fix.accuracy.toDouble()*2)){tone?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP,180);if(index==route.lastIndex){running=false;notice=if(ar)"قرب نهاية المسار، تحقق بصرياً" else "Near route end; verify visually"}else{index++;notice=if(ar)"قرب النقطة السابقة، انتقل للتي تليها" else "Near waypoint; next leg"}}}
  LazyColumn(verticalArrangement=Arrangement.spacedBy(6.dp)){
  item{TextButton(onClick=back){Text(if(ar)"رجوع" else "Back")};Text(if(ar)"المسارات الملاحية" else "Routes",style=MaterialTheme.typography.titleLarge)}
- item{Text((if(ar)"عدد النقاط: " else "Points: ")+route.size);Row{TextButton(enabled=!running,onClick={route=route.asReversed();index=0}){Text(if(ar)"عكس" else "Reverse")};TextButton(enabled=!running,onClick={route=emptyList();index=0;gaps=false}){Text(if(ar)"مسح" else "Clear")};Button(enabled=route.isNotEmpty(),onClick={if(running)running=false else{index=0;running=true}}){Text(if(running){if(ar)"إيقاف" else "Stop"}else{if(ar)"بدء" else "Start"})}}}
+ item{Text((if(ar)"عدد النقاط: " else "Points: ")+route.size);Row{TextButton(enabled=!running,onClick={route=route.asReversed();index=0;pending=emptyList();gaps=false}){Text(if(ar)"عكس" else "Reverse")};TextButton(enabled=!running,onClick={route=emptyList();index=0;gaps=false;pending=emptyList()}){Text(if(ar)"مسح" else "Clear")};Button(enabled=route.isNotEmpty(),onClick={if(running)running=false else{index=0;running=true}}){Text(if(running){if(ar)"إيقاف" else "Stop"}else{if(ar)"بدء" else "Start"})}}}
  if(gaps)item{Text(if(ar)"المسار المسجل متعدد المقاطع: لا يتم وصل الفجوات تلقائياً." else "Recorded track has gaps; segments are not joined.",color=MaterialTheme.colorScheme.error)}
+ if(!running&&pending.isNotEmpty())item{Button(onClick={route=pending.first();pending=pending.drop(1);index=0;notice="";running=true}){Text(if(ar)"بدء المقطع التالي بعد التحقق من الطريق" else "Start next segment after verifying safe passage")}}
+ if(!running)item{Row{TextButton(enabled=route.isNotEmpty()&&!gaps,onClick={prefs.edit().putString("route",encodeRoute(route)).apply();notice=if(ar)"تم حفظ المسار" else "Route saved"}){Text(if(ar)"حفظ" else "Save")};TextButton(enabled=route.isNotEmpty(),onClick={val data=TransferData(emptyList(),listOf(TransferTrack("Route",listOf(route.map{TransferPoint("",it.lat,it.lon,"")}))));val intent=android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT,gpx(data));c.startActivity(android.content.Intent.createChooser(intent,null))}){Text(if(ar)"مشاركة GPX" else "Share GPX")}}}
  if(running||notice.isNotEmpty())item{Text(notice);Text((if(ar)"النقطة " else "Waypoint ")+(index+1)+"/"+route.size);Text(ltrValue(metrics?.let{distanceLabel(it.meters,unit)}?:"—"));Text(ltrValue(metrics?.bearing?.let{String.format(java.util.Locale.US,"%.1f°",it)}?:"—"));Text((if(ar)"المتبقي: " else "Remaining: ")+(current?.let{routeRemaining(it,route,index)}?.let{ltrValue(distanceLabel(it,unit))}?:"—"));if(index>0&&current!=null&&target!=null)Text("XTE: "+ltrValue(distanceLabel(abs(routeXte(route[index-1],target,current)),unit)))}
- if(!running){item{Text(if(ar)"أضف المواقع بالترتيب المطلوب" else "Add waypoints in order")};items(points){p->TextButton(onClick={route=route+RouteVertex(p.latitude,p.longitude)}){Text("+ "+p.name)}};item{Text("TrackBack")};items(tracks.filter{it.ended!=null}){t->TextButton(onClick={scope.launch{val seg=td.points(t.id).first().groupBy{it.segment}.values.toList();gaps=seg.size>1;route=if(gaps)emptyList() else seg.flatten().asReversed().map{RouteVertex(it.lat,it.lon)};index=0}}){Text(t.name.ifBlank{localDate(t.started)})}}}
+ if(!running){item{Text(if(ar)"أضف المواقع بالترتيب المطلوب" else "Add waypoints in order")};items(points){p->TextButton(onClick={route=route+RouteVertex(p.latitude,p.longitude);pending=emptyList();gaps=false}){Text("+ "+p.name)}};item{Text("TrackBack")};items(tracks.filter{it.ended!=null}){t->TextButton(onClick={scope.launch{val seg=td.points(t.id).first().groupBy{it.segment}.values.toList();val reversed=reverseTrackSegments(seg.map{part->part.map{RouteVertex(it.lat,it.lon)}}).filter{it.isNotEmpty()};gaps=reversed.size>1;route=reversed.firstOrNull()?:emptyList();pending=reversed.drop(1);index=0;notice=""}}){Text(t.name.ifBlank{localDate(t.started)})}}}
  item{Text(if(ar)"رسم ملاحي مساعد فقط، لا يكشف العوائق." else "Navigation aid only; does not detect hazards.")}
  }
 }
