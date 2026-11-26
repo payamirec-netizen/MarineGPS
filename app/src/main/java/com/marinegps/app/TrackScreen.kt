@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
  val active=tracks.firstOrNull{it.ended==null}
  val scope=rememberCoroutineScope()
  var selection by remember{mutableStateOf(setOf<Long>())}
+ var cancelRecording by remember{mutableStateOf(false)}
  var bulkDelete by remember{mutableStateOf(false)}
  var rename by remember{mutableStateOf<Track?>(null)}
  var renameValue by remember{mutableStateOf("")}
@@ -53,6 +54,7 @@ import androidx.compose.ui.Alignment
  else{
  Button(onClick={command(if(active.state=="paused")"resume" else "pause")}){Text(tr(if(active.state=="paused")"Resume" else "Pause"))}
  OutlinedButton(onClick={command("stop")}){Text(tr("Stop & save"))}
+ TextButton(onClick={cancelRecording=true}){Text(if(LocalArabic.current)"إلغاء التسجيل" else "Discard",color=MaterialTheme.colorScheme.error)}
  }
  };if(error.isNotEmpty())Text(tr(error),color=MaterialTheme.colorScheme.error)
  var diagnostics by remember{mutableStateOf(false)}
@@ -62,10 +64,11 @@ import androidx.compose.ui.Alignment
  item{Text(tr("Saved tracks"),style=MaterialTheme.typography.titleMedium)}
  item{Row{TextButton(onClick={selection=tracks.filter{it.ended!=null}.map{it.id}.toSet()}){Text(tr("Select all"))};TextButton(onClick={selection=emptySet()}){Text(tr("Clear selection"))}}}
  if(selection.isNotEmpty())item{var data by remember(selection){mutableStateOf<TransferData?>(null)};LaunchedEffect(selection){data=TransferData(emptyList(),tracks.filter{it.id in selection&&it.ended!=null}.map{t->TransferTrack(t.name,dao.points(t.id).first().groupBy{it.segment}.values.map{s->s.map{TransferPoint("",it.lat,it.lon,time=it.time,accuracy=it.accuracy)}},t.started,t.ended,t.activeMillis,t.meters,t.maxSpeed)})};data?.let{SelectionActions(it,{bulkDelete=true})}}
- items(tracks.filter{it.ended!=null},key={it.id}){t->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(8.dp),verticalAlignment=Alignment.CenterVertically){Checkbox(t.id in selection,{checked->selection=if(checked)selection+t.id else selection-t.id});Column(Modifier.weight(1f)){Text(t.name.ifBlank{tr("Track")},style=MaterialTheme.typography.titleMedium);Text(localDate(t.started),style=MaterialTheme.typography.bodySmall);Text(ltrValue(distanceLabel(t.meters,unit)+" • "+t.activeMillis/60000+" min"));Row{TextButton(onClick={selected=t.id}){Text(tr("Tracks"))};if(selection.isEmpty())TextButton(onClick={rename=t;renameValue=t.name}){Text(tr("Rename"))}}}}}}
+ items(tracks.filter{it.ended!=null},key={it.id}){t->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(8.dp),verticalAlignment=Alignment.CenterVertically){Checkbox(t.id in selection,{checked->selection=if(checked)selection+t.id else selection-t.id});Column(Modifier.weight(1f)){Text(t.name.ifBlank{tr("Track")},style=MaterialTheme.typography.titleMedium);Text(localDate(t.started),style=MaterialTheme.typography.bodySmall);Text(ltrValue(distanceLabel(t.meters,unit)+" • "+routeDuration(t.activeMillis)));Row{TextButton(onClick={selected=t.id}){Text(tr("Tracks"))};if(selection.isEmpty())TextButton(onClick={rename=t;renameValue=t.name}){Text(tr("Rename"))}}}}}}
  item{Text(tr("Track sketch only — not a nautical chart. Keep independent navigation equipment."))}
  }
  }
+ if(cancelRecording)AlertDialog(onDismissRequest={cancelRecording=false},title={Text(if(LocalArabic.current)"إلغاء التسجيل دون حفظ؟" else "Discard recording?")},text={Text(if(LocalArabic.current)"سيحذف التسجيل الحالي فقط." else "Only the current recording will be deleted.")},confirmButton={TextButton(onClick={cancelRecording=false;selected=null;command("cancel")}){Text(tr("Delete"))}},dismissButton={TextButton(onClick={cancelRecording=false}){Text(tr("Cancel"))}})
  rename?.let{t->AlertDialog(onDismissRequest={rename=null},title={Text(tr("Rename track"))},text={OutlinedTextField(renameValue,{renameValue=it.take(200)})},confirmButton={TextButton(onClick={rename=null;scope.launch{dao.update(t.copy(name=renameValue.trim()))}}){Text(tr("Save"))}},dismissButton={TextButton(onClick={rename=null}){Text(tr("Cancel"))}})}
  if(bulkDelete)AlertDialog(onDismissRequest={bulkDelete=false},title={Text(tr("Confirm deletion"))},confirmButton={TextButton(onClick={bulkDelete=false;scope.launch{TrackDb.get(context).withTransaction{tracks.filter{it.id in selection&&it.ended!=null}.forEach{dao.delete(it)}};selection=emptySet()}}){Text(tr("Delete"))}},dismissButton={TextButton(onClick={bulkDelete=false}){Text(tr("Cancel"))}})
 }
@@ -73,7 +76,7 @@ internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0
 @Composable private fun TrackDetail(t:Track,dao:TrackDao,unit:String,speedUnit:String){
  val points by remember(t.id){dao.points(t.id)}.collectAsState(initial=emptyList())
  Text(tr("Distance: ")+distanceLabel(t.meters,unit),style=MaterialTheme.typography.headlineSmall)
- Text(tr("Recorded time: ")+t.activeMillis/60000+" min "+t.activeMillis/1000%60+" s")
+ Text(tr("Recorded time: ")+ltrValue(routeDuration(t.activeMillis)))
  Text(tr("Average: ")+speedLabel(if(t.activeMillis>0)t.meters/t.activeMillis*1000 else 0.0,speedUnit)+" • "+tr("Max: ")+speedLabel(t.maxSpeed,speedUnit))
  Text(tr("Points: ")+points.size)
  val color=MaterialTheme.colorScheme.primary

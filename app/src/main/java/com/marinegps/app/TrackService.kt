@@ -60,6 +60,7 @@ class TrackService:Service(),LocationListener {
  val dao=db.tracks()
  if(track==null)track=dao.active()
  when(action){
+ "cancel"->{sessionStarted=false;disconnect();releaseWake();track?.let{t->db.withTransaction{if(dao.active()?.id==t.id)dao.delete(t)}};track=null;previous=null;TrackHealth.mutable.value=RecordingHealth();stopForeground(STOP_FOREGROUND_REMOVE);stopSelf()}
  "stop"->{track?.let{dao.update(it.copy(ended=System.currentTimeMillis(),state="saved",activeMillis=it.activeMillis+pendingTime()))};track=null;sessionStarted=false;disconnect();releaseWake();TrackHealth.mutable.value=RecordingHealth();stopSelf()}
  "pause"->{track?.let{track=it.copy(state="paused",activeMillis=it.activeMillis+pendingTime());dao.update(track!!)};sessionStarted=false;disconnect();previous=null;releaseWake();TrackHealth.mutable.value=TrackHealth.mutable.value.copy(running=false,message="Paused",waitingSince=0);getSystemService(NotificationManager::class.java).notify(50,notification("Recording paused"))}
  else->{
