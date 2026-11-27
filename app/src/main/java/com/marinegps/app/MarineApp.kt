@@ -60,6 +60,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
 @Composable fun MarineApp(s:GnssState,request:()->Unit,settings:()->Unit){
  val context=LocalContext.current
  val prefs=remember{context.getSharedPreferences("marine_settings",0)}
+ var toolsOpen by rememberSaveable{mutableStateOf(false)}
  var routesOpen by rememberSaveable{mutableStateOf(false)}
  var dataOpen by rememberSaveable{mutableStateOf(false)}
  var tab by rememberSaveable{mutableIntStateOf(0)}
@@ -81,7 +82,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  val dark=when(appearance){"Dark"->true;"Light"->false;else->isSystemInDarkTheme()}
  CompositionLocalProvider(LocalArabic provides arabic,androidx.compose.ui.platform.LocalLayoutDirection provides if(arabic) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr){
  MaterialTheme(colorScheme=if(dark)darkColorScheme(primary=Color(0xFF65DBC0),secondaryContainer=Color(0xFF204C47))else lightColorScheme(primary=Color(0xFF006B59),secondaryContainer=Color(0xFFB5EBDD))){
- Scaffold(bottomBar={NavigationBar{labels.forEachIndexed{i,label->NavigationBarItem(selected=tab==i,onClick={tab=i;dataOpen=false},icon={NavGlyph(i)},label={Text(tr(label),fontSize=10.sp,maxLines=1,softWrap=false)})}}}){padding->
+ Scaffold(bottomBar={NavigationBar{labels.forEachIndexed{i,label->NavigationBarItem(selected=tab==i,onClick={tab=i;dataOpen=false;toolsOpen=false},icon={NavGlyph(i)},label={Text(tr(label),fontSize=10.sp,maxLines=1,softWrap=false)})}}}){padding->
  Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp)){
  Text("Marine GPS",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(top=12.dp))
  Text((if(tab==4&&target!=null)"Navigation" else labels[tab]).let{tr(it)}+" • "+tr("Native GNSS"),color=MaterialTheme.colorScheme.primary)
@@ -91,7 +92,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  0->MarineDashboard(s,units,format,request,settings)
  1->SignalScreen(s,usedOnly,{usedOnly=it})
  2->SkyScreen(s,usedOnly,{usedOnly=it})
- 4->if(routesOpen) RouteScreen(s,distance){routesOpen=false} else if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units,session){targetId=null} else if(dataOpen)DataScreen{dataOpen=false}else {TextButton(onClick={routesOpen=true}){Text(if(arabic)"المسارات الملاحية والعودة" else "Routes & TrackBack")};WaypointScreen(s,distance,format,{dataOpen=true}){targetId=it.id}}
+ 4->if(toolsOpen) MarineTools(s,distance){toolsOpen=false} else if(routesOpen) RouteScreen(s,distance){routesOpen=false} else if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units,session){targetId=null} else if(dataOpen)DataScreen{dataOpen=false}else {TextButton(onClick={toolsOpen=true}){Text(if(arabic)"أدوات البحر والصيد" else "Marine & fishing tools")};TextButton(onClick={routesOpen=true}){Text(if(arabic)"المسارات الملاحية والعودة" else "Routes & TrackBack")};WaypointScreen(s,distance,format,{dataOpen=true}){targetId=it.id}}
  3->if(dataOpen) DataScreen{dataOpen=false} else LazyColumn(verticalArrangement=Arrangement.spacedBy(4.dp)){
  item{CompactSetting("Language",listOf("system","ar","en"),language,{language=it;prefs.edit().putString("language",it).apply()})}
  item{CompactSetting("Speed units",listOf("kn","km/h","m/s"),units,{units=it;prefs.edit().putString("speed",it).apply()})}
@@ -101,7 +102,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  item{Button(onClick=request){Text(tr("Location permission"))}}
  item{OutlinedButton(onClick=settings){Text(tr("Android location settings"))}}
  item{Button(onClick={dataOpen=true}){Text(tr("Data management"))}}
- item{Text("0.7.1 • "+tr("Offline GNSS"))}
+ item{Text("0.8.0 • "+tr("Offline GNSS"))}
  item{Text(tr("Experimental navigation aid. Not a certified marine instrument."))}
  }
  }
