@@ -1,5 +1,8 @@
 name: Build Android APK
 on: [push, workflow_dispatch]
+permissions:
+  contents: write
+  actions: read
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -8,7 +11,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '17.0.21.1'
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
@@ -32,22 +35,25 @@ jobs:
           test "$actual" = "8280d01969ce8128fdb5940eea83010ec69385e9fdb6dc6ecfdeed07974106c9"
           echo "MARINE_CERT_SHA256=$actual" >> "$GITHUB_ENV"
           echo "Restored certificate SHA-256: $actual"
-      - name: Restore frozen wreck dataset
+      - name: Restore and verify frozen wreck dataset
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api repos/${{ github.repository }}/actions/artifacts/15231270491/zip > frozen-wrecks.zip
-          echo "576d1ecab9c115c2b02ae1102028db767fe1405285769b117efb8342bed8e33f  frozen-wrecks.zip" | sha256sum -c -
-          mkdir -p app/src/main/assets
-          unzip -p frozen-wrecks.zip app/src/main/assets/wrecks-ukho.geojson > app/src/main/assets/wrecks-ukho.geojson
-          test -s app/src/main/assets/wrecks-ukho.geojson
+          asset=app/src/main/assets/wrecks-ukho.geojson
+          if [ ! -f "$asset" ]; then
+            gh api repos/${{ github.repository }}/actions/artifacts/15231270491/zip > frozen-wrecks.zip
+            echo "576d1ecab9c115c2b02ae1102028db767fe1405285769b117efb8342bed8e33f  frozen-wrecks.zip" | sha256sum -c -
+            mkdir -p "$(dirname "$asset")"
+            unzip -p frozen-wrecks.zip "$asset" > "$asset"
+          fi
+          echo "e84df0641bb4e5f45e1cf142c0eb23b40dd628025f268842e14ef258eadc0e6a  $asset" | sha256sum -c -
       - name: Build APK with retry on rate limits
         shell: bash
         run: |
           set -o pipefail
           for attempt in 1 2 3 4; do
-            if gradle :app:testReleaseUnitTest :app:assembleRelease --stacktrace --max-workers=2 2>&1 | tee build.log; then
+            if gradle :app:testReleaseUnitTest :app:assembleRelease --write-locks --stacktrace --max-workers=2 2>&1 | tee build.log; then
               exit 0
             fi
             if ! grep -Eq '429|Too Many Requests' build.log || [ "$attempt" -eq 4 ]; then
@@ -55,6 +61,19 @@ jobs:
             fi
             sleep $((attempt * 60))
           done
+      - name: Persist verified dataset and dependency locks
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f app/src/main/assets/wrecks-ukho.geojson
+          test -s app/gradle.lockfile
+          git add app/gradle.lockfile
+          if ! git diff --cached --quiet; then
+            git commit -m "Persist verified wreck snapshot and release dependency locks"
+            git push origin HEAD:main
+          fi
       - name: Verify APK signing certificate
         shell: bash
         run: |
