@@ -20,7 +20,9 @@ import org.json.JSONObject
  val c=LocalContext.current;val ar=LocalArabic.current
  fun l(a:String,b:String)=if(ar)a else b
  val prefs=remember{c.getSharedPreferences("marine_fishing",0)}
- var records by remember{mutableStateOf(runCatching{val a=JSONArray(prefs.getString("entries","[]"));(0 until a.length()).map{a.getJSONObject(it)}}.getOrDefault(emptyList()))}
+ val loaded=remember{runCatching{val a=validateCatchEntries(JSONArray(prefs.getString("entries","[]")));(0 until a.length()).map{a.getJSONObject(it)}}}
+ if(loaded.isFailure){Text(l("تعذر قراءة سجل المصيد. لم يتم حذف البيانات.","Cannot read catch log. Data has been preserved."),color=MaterialTheme.colorScheme.error);return}
+ var records by remember{mutableStateOf(loaded.getOrThrow())}
  var species by remember{mutableStateOf("")};var count by remember{mutableStateOf("1")};var weight by remember{mutableStateOf("")};var bait by remember{mutableStateOf("")};var note by remember{mutableStateOf("")};var editing by remember{mutableStateOf<String?>(null)};var deleting by remember{mutableStateOf<String?>(null)}
  fun save(v:List<JSONObject>){prefs.edit().putString("entries",JSONArray(v).toString()).apply();records=v}
  Text(l("سجل المصيد","Catch log"),style=MaterialTheme.typography.titleMedium)

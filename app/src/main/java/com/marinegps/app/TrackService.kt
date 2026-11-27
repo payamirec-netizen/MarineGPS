@@ -32,12 +32,14 @@ class TrackService:Service(),LocationListener {
  private var lastAccepted=0L
  private var generation=0L
  private var sessionStarted=false
+ private var monitorQueued=false
+ private var lastPersist=0L
  private var listener:LocationListener?=null
  private fun disconnect(){listener?.let{manager.removeUpdates(it)};listener=null;listening=false;generation++}
  private fun releaseWake(){wake?.let{if(it.isHeld)it.release()};wake=null}
  private fun holdWake(){if(wake?.isHeld==true)return;wake=getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"MarineGPS:Track").apply{setReferenceCounted(false);acquire()}}
  private fun connect(){disconnect();val epoch=generation;lastRetry=SystemClock.elapsedRealtime();try{val callback=object:LocationListener{override fun onLocationChanged(location:Location){if(epoch==generation)this@TrackService.onLocationChanged(location)}};listener=callback;manager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,0f,callback,Looper.getMainLooper());listening=true}catch(e:Exception){TrackHealth.mutable.value=TrackHealth.mutable.value.copy(message="GPS reconnect failed: "+e.javaClass.simpleName)}}
- private suspend fun checkpoint(){val t=track?:return;if(t.state!="recording")return;val now=SystemClock.elapsedRealtime();val updated=t.copy(activeMillis=t.activeMillis+(now-lastTick).coerceAtLeast(0));db.tracks().update(updated);track=updated;lastTick=now}
+ private suspend fun checkpoint(){val t=track?:return;if(t.state!="recording")return;val now=SystemClock.elapsedRealtime();val updated=t.copy(activeMillis=t.activeMillis+(now-lastTick).coerceAtLeast(0));db.tracks().update(updated);track=updated;lastTick=now;lastPersist=now}
  private suspend fun monitor(){if(!sessionStarted||track?.state!="recording")return;checkpoint();val now=SystemClock.elapsedRealtime();val health=TrackHealth.mutable.value;val last=lastAccepted;val lost=now-last>10000L;if(lost&&gapStart==0L){gapStart=last;TrackHealth.mutable.value=health.copy(gaps=health.gaps+1,waitingSince=gapStart,message="Waiting for usable GPS")};if(shouldReconnect(now,last,lastRetry))connect();if(lost)getSystemService(NotificationManager::class.java).notify(50,notification("Recording — waiting for GPS"))}
  override fun onBind(intent:Intent?)=null
  override fun onCreate(){
@@ -45,8 +47,8 @@ class TrackService:Service(),LocationListener {
  db=TrackDb.get(this)
  manager=getSystemService(LocationManager::class.java)
  getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("tracks",translateText("Track recording",appArabic(this)),NotificationManager.IMPORTANCE_LOW))
- scope.launch { while(isActive){delay(5000);events.send{monitor()}} }
- scope.launch { for(event in events){try{event()}catch(e:CancellationException){throw e}catch(e:Exception){android.util.Log.e("TrackService","Recording failed",e);stopSelf();break}} }
+ scope.launch { while(isActive){delay(5000);if(!monitorQueued){monitorQueued=true;events.send{try{monitor()}finally{monitorQueued=false}}}} }
+ scope.launch { for(event in events){try{event()}catch(e:CancellationException){throw e}catch(e:Exception){android.util.Log.e("TrackService","Recording failed",e);LocalDiagnostics.record(this@TrackService,"TrackService",e.javaClass.simpleName);stopSelf();break}} }
  }
  private fun notification(message:String):Notification {
  val open=PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java),PendingIntent.FLAG_IMMUTABLE)
@@ -69,7 +71,7 @@ class TrackService:Service(),LocationListener {
  if(track!!.state=="recording"&&sessionStarted){if(action=="reconnect"||!listening)connect();return@command}
  if(track!!.state=="paused"&&action=="reconnect")return@command
  track=track!!.copy(state="recording");dao.update(track!!)
- sessionStarted=true;generation++;previous=null;lastFixNanos=0L;segment=System.currentTimeMillis();lastTick=SystemClock.elapsedRealtime();lastAccepted=lastTick;gapStart=0L
+ sessionStarted=true;generation++;previous=null;lastFixNanos=0L;segment=System.currentTimeMillis();lastTick=SystemClock.elapsedRealtime();lastPersist=lastTick;lastAccepted=lastTick;gapStart=0L
  TrackHealth.mutable.value=RecordingHealth(running=true,waitingSince=lastTick,message="Acquiring GPS");holdWake();connect()
  }else getSystemService(NotificationManager::class.java).notify(50,notification("Recording paused"))
  }
@@ -98,10 +100,10 @@ class TrackService:Service(),LocationListener {
  val elapsed=(now-lastTick).coerceAtLeast(0L)
  val speed=if(loc.hasSpeed()&&loc.speed in 0f..60f)loc.speed.toDouble() else 0.0
  val updated=t.copy(meters=t.meters+step,activeMillis=t.activeMillis+elapsed,maxSpeed=maxOf(t.maxSpeed,speed))
- db.withTransaction {
+ if(shouldPersistTrack(previous==null||step>0,updated.maxSpeed>t.maxSpeed,now-lastPersist)){db.withTransaction {
  if(previous==null||step>0){db.tracks().point(TrackPoint(trackId=t.id,time=loc.time,lat=loc.latitude,lon=loc.longitude,accuracy=loc.accuracy,segment=segment))}
  db.tracks().update(updated)
- }
+ };lastPersist=now}
  if(previous==null||step>0)previous=loc
  lastTick=now;track=updated
  }
