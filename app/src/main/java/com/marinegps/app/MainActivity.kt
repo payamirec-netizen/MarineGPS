@@ -20,10 +20,12 @@ import androidx.compose.ui.unit.sp
 import java.util.Locale
 class MainActivity:ComponentActivity(){
  private lateinit var model:GnssModel
+ private val notifications=registerForActivityResult(ActivityResultContracts.RequestPermission()){}
  private val permission=registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){if(lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED))model.start()}
  override fun onCreate(savedInstanceState:Bundle?){
  super.onCreate(savedInstanceState)
  model=ViewModelProvider(this)[GnssModel::class.java]
+ if(android.os.Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED&&!getPreferences(0).getBoolean("notificationAsked",false)){getPreferences(0).edit().putBoolean("notificationAsked",true).apply();notifications.launch(Manifest.permission.POST_NOTIFICATIONS)}
  setContent{
  val state by model.state.collectAsStateWithLifecycle()
  val dark=androidx.compose.foundation.isSystemInDarkTheme()
