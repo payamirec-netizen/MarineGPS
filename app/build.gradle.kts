@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
  namespace = "com.marinegps.app"
  compileSdk = 35
- defaultConfig { applicationId = "com.marinegps.app"; minSdk = 26; targetSdk = 35; versionCode = 21; versionName = "1.0.0-RC1" }
+ defaultConfig { applicationId = "com.marinegps.app"; minSdk = 26; targetSdk = 35; versionCode = 22; versionName = "1.0.0-RC2" }
  signingConfigs {
   getByName("debug") {
    storeFile = file(System.getenv("MARINE_KEYSTORE_PATH") ?: "${System.getProperty("user.home")}/.android/debug.keystore")
@@ -11,7 +11,7 @@ android {
    keyPassword = "android"
   }
  }
- buildTypes { getByName("debug") { signingConfig = signingConfigs.getByName("debug") } }
+ buildTypes { getByName("debug") { signingConfig = signingConfigs.getByName("debug") }; getByName("release") { signingConfig = signingConfigs.getByName("debug"); isDebuggable = false; isMinifyEnabled = false } }
  buildFeatures { compose = true; buildConfig = true }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
 }
