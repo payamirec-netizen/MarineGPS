@@ -55,12 +55,12 @@ internal fun fmtPoint(v:Double,n:Int)=String.format(Locale.US,"%."+n+"f",v)
  Text((if(p.category=="Hazard")"⚠ " else "")+tr(p.category));Text(ltrValue(coordinate(p.latitude,true,format)+" / "+coordinate(p.longitude,false,format)))
  p.accuracy?.let{Text(tr("Saved GPS accuracy: ± ")+ltrValue(fmtPoint(it.toDouble(),1)+" m"))}
  if(p.notes.isNotBlank())Text(p.notes)
- if(fix!=null){val m=targetMetrics(fix.latitude,fix.longitude,p.latitude,p.longitude);val reliable=usableBearing(m,fix.takeIf{it.hasAccuracy()}?.accuracy,p.accuracy);Text(distanceLabel(m.meters,unit)+" · "+tr("Bearing true: ")+(reliable?.let{fmtPoint(it,1)+"°"}?:tr("Uncertain")))}else Text(tr("Distance / bearing unavailable"))
+ if(fix!=null){val m=targetMetrics(fix.latitude,fix.longitude,p.latitude,p.longitude);val reliable=usableBearing(m,fix.takeIf{it.hasAccuracy()}?.accuracy,p.accuracy);Text(ltrValue(distanceLabel(m.meters,unit))+" · "+tr("Bearing true: ")+(reliable?.let{ltrValue(fmtPoint(it,1)+"°")}?:tr("Uncertain")))}else Text(tr("Distance / bearing unavailable"))
  if(selection.isEmpty())Row{TextButton(onClick={navigate(p)},enabled=!busy){Text(tr("Navigate"))};TextButton(onClick={edit=p},enabled=!busy){Text(tr("Edit"))};TextButton(onClick={remove=p},enabled=!busy){Text(tr("Delete"))}}
  }}}
  }
- if(bulkDelete)AlertDialog(onDismissRequest={bulkDelete=false},title={Text(tr("Confirm deletion"))},text={Text(picked.size.toString())},confirmButton={TextButton(onClick={bulkDelete=false;scope.launch{WaypointDb.get(context).withTransaction{picked.forEach{dao.delete(it)}};selection=emptySet()}}){Text(tr("Delete"))}},dismissButton={TextButton(onClick={bulkDelete=false}){Text(tr("Cancel"))}})
- edit?.let{p->WaypointEditor(p,{edit=null},{updated->busy=true;scope.launch{try{if(updated.id==0L)dao.insert(updated)else dao.update(updated);edit=null;error=""}catch(e:Exception){error="Unable to save waypoint"}finally{busy=false}}},busy)}
+ if(bulkDelete)AlertDialog(onDismissRequest={bulkDelete=false},title={Text(tr("Confirm deletion"))},text={Text(picked.size.toString())},confirmButton={TextButton(enabled=!busy,onClick={bulkDelete=false;busy=true;scope.launch{try{WaypointDb.get(context).withTransaction{picked.forEach{dao.delete(it)}};selection=emptySet();error=""}catch(e:kotlinx.coroutines.CancellationException){throw e}catch(e:Exception){error="Unable to delete waypoint"}finally{busy=false}}}){Text(tr("Delete"))}},dismissButton={TextButton(onClick={bulkDelete=false}){Text(tr("Cancel"))}})
+ edit?.let{p->WaypointEditor(p,{edit=null},{updated->busy=true;scope.launch{try{if(updated.id==0L)dao.insert(updated)else dao.update(updated);edit=null;error=""}catch(e:kotlinx.coroutines.CancellationException){throw e}catch(e:Exception){error="Unable to save waypoint"}finally{busy=false}}},busy)}
  remove?.let{p->AlertDialog(onDismissRequest={if(!busy)remove=null},title={Text(tr("Delete waypoint?"))},text={Text(p.name)},confirmButton={TextButton(enabled=!busy,onClick={busy=true;scope.launch{try{dao.delete(p);remove=null;error=""}catch(e:Exception){error="Unable to delete waypoint"}finally{busy=false}}}){Text(tr("Delete"))}},dismissButton={TextButton(onClick={remove=null},enabled=!busy){Text(tr("Cancel"))}})}
 }
 @Composable private fun WaypointEditor(p:Waypoint,cancel:()->Unit,save:(Waypoint)->Unit,busy:Boolean){
@@ -70,7 +70,7 @@ internal fun fmtPoint(v:Double,n:Int)=String.format(Locale.US,"%."+n+"f",v)
  var category by remember(p){mutableStateOf(p.category)}
  var notes by remember(p){mutableStateOf(p.notes)}
  var menu by remember{mutableStateOf(false)}
- val a=if(p.latitude.isFinite()&&lat==fmtPoint(p.latitude,6))p.latitude else lat.trim().toDoubleOrNull();val b=if(p.longitude.isFinite()&&lon==fmtPoint(p.longitude,6))p.longitude else lon.trim().toDoubleOrNull()
+ val a=if(p.latitude.isFinite()&&lat==fmtPoint(p.latitude,6))p.latitude else parseCoordinateInput(lat);val b=if(p.longitude.isFinite()&&lon==fmtPoint(p.longitude,6))p.longitude else parseCoordinateInput(lon)
  val valid=name.isNotBlank()&&a!=null&&b!=null&&validCoordinates(a,b)
  AlertDialog(onDismissRequest={if(!busy)cancel()},title={Text(tr(if(p.id==0L)"New waypoint" else "Edit waypoint"))},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
  OutlinedTextField(name,{name=it},label={Text(tr("Name"))},singleLine=true)
