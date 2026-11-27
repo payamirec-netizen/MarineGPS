@@ -25,9 +25,10 @@ internal fun readBounded(input:java.io.InputStream):ByteArray{
  var drift by remember{mutableStateOf<Pair<RouteVertex,Long>?>(null)}
  var warned by remember{mutableStateOf(false)}
  val exceeded=anchor?.let{a->fix?.let{targetMetrics(a.lat,a.lon,it.latitude,it.longitude).meters>radius+(if(it.hasAccuracy())it.accuracy else 20f)}}==true
- LaunchedEffect(exceeded){if(exceeded&&!warned){val tone=android.media.ToneGenerator(android.media.AudioManager.STREAM_ALARM,100);try{tone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2,800);kotlinx.coroutines.delay(900)}finally{tone.release()};warned=true};if(!exceeded)warned=false}
+ LaunchedEffect(exceeded,anchor){while(exceeded&&anchor!=null){val tone=android.media.ToneGenerator(android.media.AudioManager.STREAM_ALARM,100);try{tone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2,800);kotlinx.coroutines.delay(900)}finally{tone.release()};runCatching{c.getSystemService(android.os.Vibrator::class.java)?.vibrate(android.os.VibrationEffect.createOneShot(500,android.os.VibrationEffect.DEFAULT_AMPLITUDE))};kotlinx.coroutines.delay(4000)};if(!exceeded)warned=false}
  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
  Text(label("أدوات الصيد","Fishing tools"),style=MaterialTheme.typography.titleLarge)
+ fix?.let{val date=java.time.LocalDate.now();val times=sunTimes(date,it.latitude,it.longitude);Text(label("الشروق والغروب (تقريبي)","Sunrise / sunset (approx.)"));Text(times?.joinToString(" / "){v->java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(java.time.ZoneId.systemDefault()).format(v)}?:"—")}
  Text(label("سجل المصيد","Catch log"))
  OutlinedTextField(note,{note=it.take(500)},label={Text(label("تفاصيل المصيد","Catch details"))})
  Button(onClick={val entry=java.text.DateFormat.getDateTimeInstance().format(java.util.Date())+" • "+note;log=(entry+"\n"+log).take(100000);prefs.edit().putString("log",log).apply();note=""},enabled=note.isNotBlank()){Text(label("حفظ","Save"))}

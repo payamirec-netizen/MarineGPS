@@ -12,7 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-@Composable internal fun MarineTools(s:GnssState,unit:String,back:()->Unit){
+@Composable internal fun MarineTools(s:GnssState,unit:String,navigate:(Waypoint)->Unit,back:()->Unit){
  val c=LocalContext.current;val ar=LocalArabic.current;val scope=rememberCoroutineScope()
  fun label(a:String,e:String)=if(ar)a else e
  val file=remember{java.io.File(c.filesDir,"wrecks-ukho.geojson")}
@@ -39,6 +39,7 @@ import kotlinx.coroutines.withContext
  Text(label("أقل عمق: ","Least depth: ")+(w.depth?.let{"$it m"}?:label("غير معروف","Unknown")))
  Text(label("عمق الماء: ","Water depth: ")+(w.water?.let{"$it m"}?:label("غير معروف","Unknown")))
  Text(w.status+" • "+w.quality)
+ TextButton(onClick={navigate(Waypoint(name=w.name,latitude=w.lat,longitude=w.lon,category="Hazard",notes="Historical wreck; not verified",createdAt=System.currentTimeMillis()))}){Text(label("الاتجاه نحو الإحداثيات","Go to coordinates"))}
  TextButton(onClick={scope.launch{WaypointDb.get(c).points().insert(Waypoint(name=w.name,latitude=w.lat,longitude=w.lon,category="Hazard",notes="UKHO/EMODnet historical wreck ${w.id}; not verified; not for navigation",createdAt=System.currentTimeMillis()));message=label("تم الحفظ كموقع خطر","Saved as hazard waypoint")}}){Text(label("حفظ الموقع","Save waypoint"))}
  }}}}
  Text("Contains public sector information licensed under the Open Government Licence v3.0. Source: UKHO via EMODnet.",style=MaterialTheme.typography.bodySmall)

@@ -67,10 +67,11 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  var targetId by rememberSaveable{mutableStateOf<Long?>(null)}
  val dao=remember{WaypointDb.get(context).points()}
  val points by remember(dao){dao.observe()}.collectAsState(initial=emptyList())
- val target=points.firstOrNull{it.id==targetId}
- val session=remember(targetId){NavigationSession()}
+ var wreckTarget by remember{mutableStateOf<Waypoint?>(null)}
+ val target=wreckTarget?:points.firstOrNull{it.id==targetId}
+ val session=remember(targetId,wreckTarget){NavigationSession()}
  val navFix=currentFix(s)
- LaunchedEffect(targetId,navFix?.elapsedRealtimeNanos){if(targetId!=null&&navFix!=null)session.add(RouteVertex(navFix.latitude,navFix.longitude),navFix.elapsedRealtimeNanos/1000000L)}
+ LaunchedEffect(targetId,wreckTarget,navFix?.elapsedRealtimeNanos){if(target!=null&&navFix!=null)session.add(RouteVertex(navFix.latitude,navFix.longitude),navFix.elapsedRealtimeNanos/1000000L)}
  var units by remember{mutableStateOf(prefs.getString("speed","kn")?:"kn")}
  var distance by remember{mutableStateOf(prefs.getString("distance","NM")?:"NM")}
  var usedOnly by rememberSaveable{mutableStateOf(false)}
@@ -92,7 +93,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  0->MarineDashboard(s,units,format,request,settings)
  1->SignalScreen(s,usedOnly,{usedOnly=it})
  2->SkyScreen(s,usedOnly,{usedOnly=it})
- 4->if(toolsOpen) MarineTools(s,distance){toolsOpen=false} else if(routesOpen) RouteScreen(s,distance){routesOpen=false} else if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units,session){targetId=null} else if(dataOpen)DataScreen{dataOpen=false}else {TextButton(onClick={toolsOpen=true}){Text(if(arabic)"أدوات البحر والصيد" else "Marine & fishing tools")};TextButton(onClick={routesOpen=true}){Text(if(arabic)"المسارات الملاحية والعودة" else "Routes & TrackBack")};WaypointScreen(s,distance,format,{dataOpen=true}){targetId=it.id}}
+ 4->if(toolsOpen) MarineTools(s,distance,{w->wreckTarget=w;targetId=null;toolsOpen=false}){toolsOpen=false} else if(routesOpen) RouteScreen(s,distance){routesOpen=false} else if(target!=null) NavigationScreen(s,target,distance,units,session){targetId=null;wreckTarget=null} else if(dataOpen)DataScreen{dataOpen=false}else {TextButton(onClick={toolsOpen=true}){Text(if(arabic)"أدوات البحر والصيد" else "Marine & fishing tools")};TextButton(onClick={routesOpen=true}){Text(if(arabic)"المسارات الملاحية والعودة" else "Routes & TrackBack")};WaypointScreen(s,distance,format,{dataOpen=true}){targetId=it.id}}
  3->if(dataOpen) DataScreen{dataOpen=false} else LazyColumn(verticalArrangement=Arrangement.spacedBy(4.dp)){
  item{CompactSetting("Language",listOf("system","ar","en"),language,{language=it;prefs.edit().putString("language",it).apply()})}
  item{CompactSetting("Speed units",listOf("kn","km/h","m/s"),units,{units=it;prefs.edit().putString("speed",it).apply()})}

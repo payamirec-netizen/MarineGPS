@@ -13,6 +13,10 @@ import kotlin.math.*
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 @Composable internal fun NavigationPlot(fix:Location?,target:Waypoint,reference:Double?,unit:String,session:NavigationSession){
+ val context=androidx.compose.ui.platform.LocalContext.current
+ var wrecks by remember{mutableStateOf(emptyList<Wreck>())}
+ var showWrecks by remember{mutableStateOf(false)}
+ LaunchedEffect(showWrecks){if(showWrecks)wrecks=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){runCatching{parseWrecks(context.assets.open("wrecks-ukho.geojson").bufferedReader().use{it.readText()})}.getOrDefault(emptyList())}}
  val trail=session.trail
  var zoom by session::zoom
  val ink=MaterialTheme.colorScheme.onSurface;val accent=MaterialTheme.colorScheme.primary
@@ -29,9 +33,11 @@ import androidx.compose.ui.graphics.toArgb
  val bar=range/2;val y=size.height-12.dp.toPx();drawLine(ink,Offset(12.dp.toPx(),y),Offset(12.dp.toPx()+(bar*scale).toFloat(),y),2.dp.toPx())
  val paint=android.graphics.Paint(3).apply{color=ink.toArgb();textSize=12.dp.toPx()};drawContext.canvas.nativeCanvas.drawText(distanceLabel(bar,unit),12.dp.toPx(),y-5.dp.toPx(),paint)
  val north=Math.toRadians(-reference);val nc=Offset(size.width-30.dp.toPx(),30.dp.toPx());val tip=nc+Offset((sin(north)*18.dp.toPx()).toFloat(),(-cos(north)*18.dp.toPx()).toFloat());drawLine(ink,nc,tip,2.dp.toPx());drawContext.canvas.nativeCanvas.drawText("N",tip.x,tip.y,paint)
+ if(showWrecks)wrecks.forEach{w->val q=pos(RouteVertex(w.lat,w.lon));if(q.x in 0f..size.width&&q.y in 0f..size.height){drawLine(Color.Red,q-Offset(5f,5f),q+Offset(5f,5f),2f);drawLine(Color.Red,q-Offset(5f,-5f),q+Offset(5f,-5f),2f)}}
  val end=pos(goal);drawLine(accent,center,end,2.dp.toPx());drawCircle(Color(0xFFFF9800),6.dp.toPx(),end);drawCircle(Color(0xFFFF9800),(20*scale).toFloat(),end,style=Stroke(1.dp.toPx()));drawCircle(accent,6.dp.toPx(),center)
  }
  Row{TextButton(onClick={zoom=(zoom/1.5f).coerceAtLeast(.25f)}){Text("−")};TextButton(onClick={zoom=1f}){Text(if(LocalArabic.current)"تلقائي" else "Auto")};TextButton(onClick={zoom=(zoom*1.5f).coerceAtMost(8f)}){Text("+")}}
+ FilterChip(showWrecks,{showWrecks=!showWrecks},label={Text(if(LocalArabic.current)"الحطام التاريخي (غير مؤكد)" else "Historical wrecks (unverified)")})
  Text(ltrValue(if(distance<1)"< 1 m" else distanceLabel(distance,unit)))
  Text(if(LocalArabic.current)"الأخضر: موقعك وخط الهدف • البرتقالي: الهدف • الأزرق: أثر الحركة" else "Green: position and target line • Orange: target • Blue: trail")
 }
