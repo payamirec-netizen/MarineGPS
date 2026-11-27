@@ -17,6 +17,7 @@ class AnchorService:Service(),LocationListener{
  private var radius=50
  private var last:Location?=null
  private var job:Job?=null
+ private var lastNotificationStatus:String?=null
  override fun onBind(intent:Intent?)=null
  override fun onCreate(){super.onCreate();manager=getSystemService(LocationManager::class.java);getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("anchor","Anchor monitoring",NotificationManager.IMPORTANCE_LOW))}
  private fun notification(status:String):Notification{
@@ -31,7 +32,7 @@ class AnchorService:Service(),LocationListener{
  if(!validCoordinates(lat,lon)){stopSelf();return START_NOT_STICKY}
  radius=intent?.getIntExtra("radius",50)?.coerceIn(25,100)?:50
  try{startForeground(91,notification("Acquiring GPS"));origin=RouteVertex(lat,lon);AnchorMonitor.state.value=AnchorState(true,null,"Acquiring GPS",radius);wake=getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"MarineGPS:Anchor").apply{acquire()};manager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,0f,this,Looper.getMainLooper())}catch(e:Exception){stopSelf();return START_NOT_STICKY}
- job=scope.launch{while(isActive){val a=origin?:break;val l=last?.takeIf{SystemClock.elapsedRealtime()-it.elapsedRealtimeNanos/1000000 in 0..10000};val d=l?.let{targetMetrics(a.lat,a.lon,it.latitude,it.longitude).meters};val status=anchorStatus(d,radius);AnchorMonitor.state.value=AnchorState(true,d,status,radius);getSystemService(NotificationManager::class.java).notify(91,notification(status));if(status!="Monitoring"){runCatching{val t=ToneGenerator(AudioManager.STREAM_ALARM,100);try{t.startTone(ToneGenerator.TONE_PROP_BEEP2,800);delay(900)}finally{t.release()}};runCatching{getSystemService(Vibrator::class.java).vibrate(VibrationEffect.createOneShot(500,VibrationEffect.DEFAULT_AMPLITUDE))}};delay(4000)}}
+ job=scope.launch{while(isActive){val a=origin?:break;val l=last?.takeIf{SystemClock.elapsedRealtime()-it.elapsedRealtimeNanos/1000000 in 0..10000};val d=l?.let{targetMetrics(a.lat,a.lon,it.latitude,it.longitude).meters};val status=anchorStatus(d,radius);AnchorMonitor.state.value=AnchorState(true,d,status,radius);if(lastNotificationStatus!=status){getSystemService(NotificationManager::class.java).notify(91,notification(status));lastNotificationStatus=status};if(status!="Monitoring"){try{val t=ToneGenerator(AudioManager.STREAM_ALARM,100);try{t.startTone(ToneGenerator.TONE_PROP_BEEP2,800);delay(900)}finally{t.release()}}catch(e:CancellationException){throw e}catch(e:Exception){};runCatching{getSystemService(Vibrator::class.java).vibrate(VibrationEffect.createOneShot(500,VibrationEffect.DEFAULT_AMPLITUDE))}};delay(4000)}}
  return START_NOT_STICKY
  }
  override fun onLocationChanged(l:Location){if(l.hasAccuracy()&&l.accuracy in 0f..30f&&validCoordinates(l.latitude,l.longitude)&&freshFix(SystemClock.elapsedRealtime()-l.elapsedRealtimeNanos/1000000))last=Location(l)}

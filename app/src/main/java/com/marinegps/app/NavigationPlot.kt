@@ -28,7 +28,8 @@ import androidx.compose.ui.graphics.toArgb
  val scale=size.minDimension/2/range
  fun pos(p:RouteVertex):Offset{val m=targetMetrics(origin.lat,origin.lon,p.lat,p.lon);val a=Math.toRadians((m.bearing?:0.0)-reference);return Offset(center.x+(sin(a)*m.meters*scale).toFloat(),center.y-(cos(a)*m.meters*scale).toFloat())}
  for(i in 1..4){val x=size.width*i/5;val y=size.height*i/5;drawLine(ink.copy(alpha=.12f),Offset(x,0f),Offset(x,size.height));drawLine(ink.copy(alpha=.12f),Offset(0f,y),Offset(size.width,y))}
- trail.zipWithNext().forEach{(a,b)->if(b.time-a.time<=10000)drawLine(Color(0xFF42A5F5),pos(a.point),pos(b.point),2.dp.toPx())}
+ var previous:Offset?=null;var previousTime=0L
+ for(sample in trail){val projected=pos(sample.point);val old=previous;if(old!=null&&sample.time-previousTime<=10000)drawLine(Color(0xFF42A5F5),old,projected,2.dp.toPx());previous=projected;previousTime=sample.time}
  session.start?.let{val start=pos(it);drawLine(ink.copy(alpha=.6f),start,pos(goal),1.dp.toPx(),pathEffect=androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f,6f)));drawCircle(ink,4.dp.toPx(),start)}
  val raw=range/2;val power=10.0.pow(floor(log10(raw)));val bar=listOf(1.0,2.0,5.0).map{it*power}.lastOrNull{it<=raw}?:power;val y=size.height-12.dp.toPx();drawLine(ink,Offset(12.dp.toPx(),y),Offset(12.dp.toPx()+(bar*scale).toFloat(),y),2.dp.toPx())
  val paint=android.graphics.Paint(3).apply{color=ink.toArgb();textSize=12.dp.toPx()};drawContext.canvas.nativeCanvas.drawText(distanceLabel(bar,unit),12.dp.toPx(),y-5.dp.toPx(),paint)

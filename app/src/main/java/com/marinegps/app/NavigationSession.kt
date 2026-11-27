@@ -12,6 +12,6 @@ class NavigationSession {
  if(trail.lastOrNull()?.let{time<=it.time}==true)return
  if(start==null)start=point
  trail.add(NavSample(point,time))
- if(trail.size>10000)trail.removeAt(0)
+ if(trail.size>10000)trail.removeRange(0,1000)
  }
 }
