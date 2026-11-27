@@ -1,7 +1,7 @@
 name: Build Android APK
 on: [push, workflow_dispatch]
 permissions:
-  contents: write
+  contents: read
   actions: read
 jobs:
   build:
@@ -35,27 +35,17 @@ jobs:
           test "$actual" = "8280d01969ce8128fdb5940eea83010ec69385e9fdb6dc6ecfdeed07974106c9"
           echo "MARINE_CERT_SHA256=$actual" >> "$GITHUB_ENV"
           echo "Restored certificate SHA-256: $actual"
-      - name: Restore and verify frozen wreck dataset
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Verify committed wreck dataset and dependency locks
         run: |
           set -euo pipefail
-          asset=app/src/main/assets/wrecks-ukho.geojson
-          if [ ! -f "$asset" ]; then
-            gh api repos/${{ github.repository }}/actions/artifacts/15231270491/zip > frozen-wrecks.zip
-            echo "576d1ecab9c115c2b02ae1102028db767fe1405285769b117efb8342bed8e33f  frozen-wrecks.zip" | sha256sum -c -
-            mkdir -p "$(dirname "$asset")"
-            unzip -p frozen-wrecks.zip "$asset" > "$asset"
-          fi
-          echo "e84df0641bb4e5f45e1cf142c0eb23b40dd628025f268842e14ef258eadc0e6a  $asset" | sha256sum -c -
+          echo "e84df0641bb4e5f45e1cf142c0eb23b40dd628025f268842e14ef258eadc0e6a  app/src/main/assets/wrecks-ukho.geojson" | sha256sum -c -
+          test -s app/gradle.lockfile
       - name: Build APK with retry on rate limits
         shell: bash
         run: |
           set -o pipefail
-          lock_args=()
-          if [ ! -s app/gradle.lockfile ]; then lock_args+=(--write-locks); fi
           for attempt in 1 2 3 4; do
-            if gradle :app:testReleaseUnitTest :app:assembleRelease "${lock_args[@]}" --stacktrace --max-workers=2 2>&1 | tee build.log; then
+            if gradle :app:testReleaseUnitTest :app:assembleRelease --stacktrace --max-workers=2 2>&1 | tee build.log; then
               exit 0
             fi
             if ! grep -Eq '429|Too Many Requests' build.log || [ "$attempt" -eq 4 ]; then
@@ -63,19 +53,6 @@ jobs:
             fi
             sleep $((attempt * 60))
           done
-      - name: Persist verified dataset and dependency locks
-        if: github.ref == 'refs/heads/main'
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f app/src/main/assets/wrecks-ukho.geojson
-          test -s app/gradle.lockfile
-          git add app/gradle.lockfile
-          if ! git diff --cached --quiet; then
-            git commit -m "Persist verified wreck snapshot and release dependency locks"
-            git push origin HEAD:main
-          fi
       - name: Verify APK signing certificate
         shell: bash
         run: |
@@ -95,9 +72,27 @@ jobs:
           set -euo pipefail
           apk=app/build/outputs/apk/release/app-release.apk
           cp "$apk" "$RUNNER_TEMP/first-release.apk"
-          gradle :app:clean :app:assembleRelease --no-build-cache --rerun-tasks --max-workers=2
+          gradle :app:clean :app:testReleaseUnitTest :app:assembleRelease --no-build-cache --rerun-tasks --max-workers=2
           sha256sum "$RUNNER_TEMP/first-release.apk" "$apk" | tee reproducibility.txt
           if cmp -s "$RUNNER_TEMP/first-release.apk" "$apk"; then echo MATCH | tee -a reproducibility.txt; else echo DIFFERENT | tee -a reproducibility.txt; fi
+      - name: Verify final rebuilt APK and test reports
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk" > signing-report.txt
+          grep -Fxi "Signer #1 certificate SHA-256 digest: $MARINE_CERT_SHA256" signing-report.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$apk" > permissions.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" > apk-info.txt
+          if grep -Fq android.permission.INTERNET permissions.txt || grep -Fq application-debuggable apk-info.txt; then exit 1; fi
+          ls app/build/test-results/testReleaseUnitTest/*.xml
+          python3 - <<'PY'
+          import zipfile,hashlib,os
+          with zipfile.ZipFile(os.environ["RUNNER_TEMP"]+"/first-release.apk") as a, zipfile.ZipFile("app/build/outputs/apk/release/app-release.apk") as b:
+              with open("apk-diff.txt","w") as f:
+                  for n in sorted(set(a.namelist())|set(b.namelist())):
+                      if n not in a.namelist() or n not in b.namelist() or a.read(n)!=b.read(n):
+                          print(n,file=f)
+          PY
       - name: Record build provenance
         run: |
           git rev-parse HEAD > build-provenance.txt
@@ -114,5 +109,6 @@ jobs:
             apk-info.txt
             build-provenance.txt
             reproducibility.txt
+            apk-diff.txt
             app/src/main/assets/wrecks-ukho.geojson
             app/build/test-results/testReleaseUnitTest/*.xml
