@@ -103,7 +103,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  item{Button(onClick=request){Text(tr("Location permission"))}}
  item{OutlinedButton(onClick=settings){Text(tr("Android location settings"))}}
  item{Button(onClick={dataOpen=true}){Text(tr("Data management"))}}
- item{Text("0.8.0 • "+tr("Offline GNSS"))}
+ item{Text("0.8.1"+" • "+tr("Offline GNSS"))}
  item{Text(tr("Experimental navigation aid. Not a certified marine instrument."))}
  }
  }

@@ -24,6 +24,7 @@ import androidx.room.withTransaction
  var busy by remember{mutableStateOf(false)}
  var pending by remember{mutableStateOf<TransferData?>(null)}
  var catchImport by remember{mutableStateOf<String?>(null)}
+ var legacyImport by remember{mutableStateOf<String?>(null)}
  val fishing=c.getSharedPreferences("marine_fishing",0)
  var output by remember{mutableStateOf("")}
  var qr by remember{mutableStateOf<TransferPoint?>(null)}
@@ -33,17 +34,17 @@ import androidx.room.withTransaction
  var edit by remember{mutableStateOf<Track?>(null)}
  var delete by remember{mutableStateOf<Track?>(null)}
  var name by remember{mutableStateOf("")}
- val camera=rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()){bitmap->if(bitmap!=null)scope.launch{try{catchImport=null;pending=withContext(Dispatchers.Default){decodeQrBitmap(bitmap)};message="Review QR waypoint"}catch(e:Exception){message="QR rejected: "+e.message}finally{bitmap.recycle()}}}
+ val camera=rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()){bitmap->if(bitmap!=null)scope.launch{try{catchImport=null;legacyImport=null;pending=withContext(Dispatchers.Default){decodeQrBitmap(bitmap)};message="Review QR waypoint"}catch(e:Exception){message="QR rejected: "+e.message}finally{bitmap.recycle()}}}
  val scan=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri->if(uri!=null)scope.launch{try{val p=withContext(Dispatchers.IO){readQrData(c,uri)};catchImport=null;pending=p;message="Review QR waypoint"}catch(e:Exception){message="QR rejected: "+e.message}}}
  val save=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")){uri->
  if(uri!=null)scope.launch{busy=true;try{withContext(Dispatchers.IO){c.contentResolver.openOutputStream(uri)?.use{it.write(output.toByteArray(Charsets.UTF_8))}?:error("Cannot open file")};message="Export saved"}catch(e:Exception){message="Export failed: "+e.message}finally{busy=false}}
  }
  val open=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->
- if(uri!=null)scope.launch{busy=true;try{catchImport=null;val imported=withContext(Dispatchers.IO){val raw=c.contentResolver.openInputStream(uri)?.use{it.readBytesLimited()}?:error("Cannot read file");require(raw.size<=8_000_000);raw.toString(Charsets.UTF_8).let{if(it.trimStart().startsWith("{")){val j=org.json.JSONObject(it);val catches=j.optJSONArray("catchEntries")?.let{a->validateCatchEntries(a).toString()};restore(it) to catches}else parseGpx(it) to null}};pending=imported.first;catchImport=imported.second;message="Review import before saving"}catch(e:Exception){message="Import rejected: "+e.message}finally{busy=false}}
+ if(uri!=null)scope.launch{busy=true;try{catchImport=null;val imported=withContext(Dispatchers.IO){val raw=c.contentResolver.openInputStream(uri)?.use{it.readBytesLimited()}?:error("Cannot read file");require(raw.size<=8_000_000);raw.toString(Charsets.UTF_8).let{if(it.trimStart().startsWith("{")){val j=org.json.JSONObject(it);val catches=j.optJSONArray("catchEntries")?.let{a->validateCatchEntries(a).toString()};Triple(restore(it),catches,j.optString("legacyCatchLog").also{v->require(v.length<=100000)})}else Triple(parseGpx(it),null,null)}};pending=imported.first;catchImport=imported.second;legacyImport=imported.third;message="Review import before saving"}catch(e:Exception){message="Import rejected: "+e.message}finally{busy=false}}
  }
  fun export(ext:String,share:Boolean=false){scope.launch{busy=true;try{
  val data=withContext(Dispatchers.IO){TransferData(wd.points().observe().first().map{TransferPoint(it.name,it.latitude,it.longitude,it.notes,it.createdAt,it.category,it.accuracy)},td.tracks().observe().first().filter{it.ended!=null}.map{t->TransferTrack(t.name.ifBlank{"Track "+t.started},td.tracks().points(t.id).first().groupBy{it.segment}.values.map{s->s.map{TransferPoint("",it.lat,it.lon,time=it.time,accuracy=it.accuracy)}},t.started,t.ended,t.activeMillis,t.meters,t.maxSpeed)},prefs.all.filterValues{it is String}.mapValues{it.value.toString()})}
- output=withContext(Dispatchers.Default){when(ext){"gpx"->gpx(data);"kml"->kml(data);"json"->org.json.JSONObject(backup(data)).put("catchEntries",validateCatchEntries(org.json.JSONArray(fishing.getString("entries","[]")))).toString();else->csv(data)}}
+ output=withContext(Dispatchers.Default){when(ext){"gpx"->gpx(data);"kml"->kml(data);"json"->org.json.JSONObject(backup(data)).put("catchEntries",validateCatchEntries(org.json.JSONArray(fishing.getString("entries","[]")))).put("legacyCatchLog",fishing.getString("log","").orEmpty()).toString();else->csv(data)}}
  if(share)shareFile(c,ext,output) else save.launch("MarineGPS."+ext)
  }catch(e:Exception){message="Export failed: "+e.message}finally{busy=false}}}
  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
