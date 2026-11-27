@@ -8,7 +8,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 internal data class AnchorState(val active:Boolean=false,val distance:Double?=null,val status:String="Stopped",val radius:Int=50)
 internal object AnchorMonitor{val state=MutableStateFlow(AnchorState())}
-internal fun anchorStatus(distance:Double?,radius:Int)=if(distance==null)"GPS unavailable" else if(distance>=radius)"Outside radius" else "Monitoring"
+internal fun anchorStatus(distance:Double?,radius:Int)=if(distance==null||!distance.isFinite()||distance<0)"GPS unavailable" else if(distance>=radius)"Outside radius" else "Monitoring"
 class AnchorService:Service(),LocationListener{
  private val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
  private lateinit var manager:LocationManager
