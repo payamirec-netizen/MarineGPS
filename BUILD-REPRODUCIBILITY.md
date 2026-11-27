@@ -1,3 +1,3 @@
-# RC2 build provenance
+# RC2 build reproducibility
 
-Release uses the same signing identity and application ID. Java 17, Gradle 8.9, SDK 35 and existing explicit dependency versions are retained. Wreck data is frozen to artifact 15231270491 with its archive SHA-256 verified before extraction. This is an interim pin: artifact expires 2027-02-25; commit the exact dataset to the repository before expiry. Transitive dependency locking and immutable action/toolchain pins remain outstanding. CI archives test XML, APK metadata, dataset and hashes. Byte-identical builds are not yet established.
+The wreck snapshot and release dependency lockfile are committed. Actions are pinned to commit hashes. Normal builds do not write locks. Run 46067011978 passed 60 unit tests and verified the final APK signature. Both builds had identical decompressed ZIP entry contents, but different APK SHA-256 hashes. Metadata diagnostics are added to identify the remaining differences; byte-identical reproducibility is not yet established. Java major version is pinned, not its patch. Field validation remains required.

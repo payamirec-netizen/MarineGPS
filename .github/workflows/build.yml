@@ -93,6 +93,7 @@ jobs:
                       if n not in a.namelist() or n not in b.namelist() or a.read(n)!=b.read(n):
                           print(n,file=f)
           PY
+          python3 research/compare_apks.py "$RUNNER_TEMP/first-release.apk" "$apk" > apk-metadata-diff.txt
       - name: Record build provenance
         run: |
           git rev-parse HEAD > build-provenance.txt
@@ -110,5 +111,6 @@ jobs:
             build-provenance.txt
             reproducibility.txt
             apk-diff.txt
+            apk-metadata-diff.txt
             app/src/main/assets/wrecks-ukho.geojson
             app/build/test-results/testReleaseUnitTest/*.xml
