@@ -67,6 +67,9 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  val dao=remember{WaypointDb.get(context).points()}
  val points by remember(dao){dao.observe()}.collectAsState(initial=emptyList())
  val target=points.firstOrNull{it.id==targetId}
+ val session=remember(targetId){NavigationSession()}
+ val navFix=currentFix(s)
+ LaunchedEffect(targetId,navFix?.elapsedRealtimeNanos){if(targetId!=null&&navFix!=null)session.add(RouteVertex(navFix.latitude,navFix.longitude),navFix.elapsedRealtimeNanos/1000000L)}
  var units by remember{mutableStateOf(prefs.getString("speed","kn")?:"kn")}
  var distance by remember{mutableStateOf(prefs.getString("distance","NM")?:"NM")}
  var usedOnly by rememberSaveable{mutableStateOf(false)}
@@ -88,7 +91,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  0->MarineDashboard(s,units,format,request,settings)
  1->SignalScreen(s,usedOnly,{usedOnly=it})
  2->SkyScreen(s,usedOnly,{usedOnly=it})
- 4->if(routesOpen) RouteScreen(s,distance){routesOpen=false} else if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units){targetId=null} else if(dataOpen)DataScreen{dataOpen=false}else {TextButton(onClick={routesOpen=true}){Text(if(arabic)"المسارات الملاحية والعودة" else "Routes & TrackBack")};WaypointScreen(s,distance,format,{dataOpen=true}){targetId=it.id}}
+ 4->if(routesOpen) RouteScreen(s,distance){routesOpen=false} else if(targetId!=null&&target!=null) NavigationScreen(s,target,distance,units,session){targetId=null} else if(dataOpen)DataScreen{dataOpen=false}else {TextButton(onClick={routesOpen=true}){Text(if(arabic)"المسارات الملاحية والعودة" else "Routes & TrackBack")};WaypointScreen(s,distance,format,{dataOpen=true}){targetId=it.id}}
  3->if(dataOpen) DataScreen{dataOpen=false} else LazyColumn(verticalArrangement=Arrangement.spacedBy(4.dp)){
  item{CompactSetting("Language",listOf("system","ar","en"),language,{language=it;prefs.edit().putString("language",it).apply()})}
  item{CompactSetting("Speed units",listOf("kn","km/h","m/s"),units,{units=it;prefs.edit().putString("speed",it).apply()})}
@@ -98,7 +101,7 @@ private fun satColor(s:Int)=when(s){1->Color(0xFF42A5F5);3->Color(0xFFFF7043);5-
  item{Button(onClick=request){Text(tr("Location permission"))}}
  item{OutlinedButton(onClick=settings){Text(tr("Android location settings"))}}
  item{Button(onClick={dataOpen=true}){Text(tr("Data management"))}}
- item{Text("0.7.0 • "+tr("Offline GNSS"))}
+ item{Text("0.7.1 • "+tr("Offline GNSS"))}
  item{Text(tr("Experimental navigation aid. Not a certified marine instrument."))}
  }
  }

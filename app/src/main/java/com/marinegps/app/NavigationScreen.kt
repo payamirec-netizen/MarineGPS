@@ -31,7 +31,7 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  val closing=speed*cos(Math.toRadians(bearing-course))
  return if(closing>0.3)m/closing else null
 }
-@Composable fun NavigationScreen(s:GnssState,target:Waypoint,unit:String,speedUnit:String,stop:()->Unit){
+@Composable fun NavigationScreen(s:GnssState,target:Waypoint,unit:String,speedUnit:String,session:NavigationSession,stop:()->Unit){
  val fix=currentFix(s)
  val m=fix?.let{targetMetrics(it.latitude,it.longitude,target.latitude,target.longitude)}
  val accuracy=fix?.takeIf{it.hasAccuracy()}?.accuracy
@@ -51,7 +51,7 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  val heading=headingInfo.heading
  val reference=if(headingUp)heading else 0.0
  val relative=bearing?.let{b->reference?.let{relativeHeading(b,it)}}
- var plot by rememberSaveable{mutableStateOf(false)}
+ var plot by session::plot
  val ink=MaterialTheme.colorScheme.onSurface
  val accent=MaterialTheme.colorScheme.primary
  val outline=MaterialTheme.colorScheme.outline
@@ -60,10 +60,10 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=headingUp,onClick={headingUp=true;prefs.edit().putBoolean("heading_up",true).apply()},label={Text(tr("Heading-up"))});FilterChip(selected=!headingUp,onClick={headingUp=false;prefs.edit().putBoolean("heading_up",false).apply()},label={Text(tr("North-up"))})}
  Row{FilterChip(!plot,{plot=false},label={Text(if(LocalArabic.current)"البوصلة" else "Compass")});Spacer(Modifier.width(8.dp));FilterChip(plot,{plot=true},label={Text(if(LocalArabic.current)"الرسم الملاحي" else "Plotter")})}
  if(near)Text(tr("Near destination — verify visually"),color=accent,style=MaterialTheme.typography.bodyMedium)
- LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)){
+ LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
  if(target.category=="Hazard")item{Text(tr("Hazard waypoint — do not approach blindly"),color=MaterialTheme.colorScheme.error)}
  item{Text(tr(if(fix==null)"GPS unavailable — navigation paused" else if(bearing==null&&near)"" else if(bearing==null)"Direction uncertain — near target or insufficient accuracy" else if(headingUp&&heading==null)"Compass unavailable — hold phone flat, calibrate away from metal or select North-up" else tr("GPS FIX")+" • "+tr(if(headingUp)"Heading-up" else "North-up")),color=if(bearing==null||reference==null)MaterialTheme.colorScheme.error else accent)}
- if(plot)item{NavigationPlot(fix,target,reference,unit)} else item{Box(Modifier.fillMaxWidth().height(200.dp)){
+ if(plot)item{NavigationPlot(fix,target,reference,unit,session)} else item{Box(Modifier.fillMaxWidth().height(200.dp)){
  Canvas(Modifier.fillMaxSize().padding(24.dp)){
  val r=size.minDimension/2;val c=center
  drawCircle(outline,r,c,style=Stroke(1.dp.toPx()))
@@ -82,11 +82,11 @@ internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):D
  }
  if(relative==null&&!near)Text(tr(if(fix==null)"GPS unavailable" else if(bearing==null)"Direction uncertain" else "Compass unavailable"),Modifier.align(Alignment.Center),style=MaterialTheme.typography.bodySmall)
  }}
- item{Text(tr("Green: target • White: GPS course. Hold phone flat."))}
+ if(!plot)item{Text(tr("Green: target • White: GPS course. Hold phone flat."))}
  item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
  Text(tr("Distance: ")+(m?.let{ltrValue(distanceLabel(it.meters,unit))}?:"—"),style=MaterialTheme.typography.headlineSmall)
  Text(tr("Bearing true: ")+(bearing?.let{ltrValue(fmtPoint(it,1)+"°")}?:"—"))
- Text("SOG: "+(speed?.let{speedLabel(it,speedUnit)}?:"—"))
+ Text("SOG: "+(speed?.let{ltrValue(speedLabel(it,speedUnit))}?:"—"))
  Text(tr("Phone heading true: ")+(heading?.let{ltrValue(fmtPoint(it,1)+"°")}?:"—"))
  if(headingUp)Text(tr("Compass: ")+tr(headingInfo.status),style=MaterialTheme.typography.bodySmall)
  Text(tr("GPS fix age: ")+(fix?.let{((android.os.SystemClock.elapsedRealtime()-it.elapsedRealtimeNanos/1000000L).coerceAtLeast(0)/1000).toString()+" s"}?:"—"))

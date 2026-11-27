@@ -75,9 +75,9 @@ import androidx.compose.ui.Alignment
 internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0;val base=10.0.pow(floor(log10(max)));return base*(listOf(1.0,2.0,5.0).lastOrNull{it<=max/base}?:0.5)}
 @Composable private fun TrackDetail(t:Track,dao:TrackDao,unit:String,speedUnit:String){
  val points by remember(t.id){dao.points(t.id)}.collectAsState(initial=emptyList())
- Text(tr("Distance: ")+distanceLabel(t.meters,unit),style=MaterialTheme.typography.headlineSmall)
+ Text(tr("Distance: ")+ltrValue(distanceLabel(t.meters,unit)),style=MaterialTheme.typography.headlineSmall)
  Text(tr("Recorded time: ")+ltrValue(routeDuration(t.activeMillis)))
- Text(tr("Average: ")+speedLabel(if(t.activeMillis>0)t.meters/t.activeMillis*1000 else 0.0,speedUnit)+" • "+tr("Max: ")+speedLabel(t.maxSpeed,speedUnit))
+ Text(tr("Average: ")+ltrValue(speedLabel(if(t.activeMillis>0)t.meters/t.activeMillis*1000 else 0.0,speedUnit))+" • "+tr("Max: ")+ltrValue(speedLabel(t.maxSpeed,speedUnit)))
  Text(tr("Points: ")+points.size)
  val color=MaterialTheme.colorScheme.primary
  val ink=MaterialTheme.colorScheme.onSurface
