@@ -24,7 +24,7 @@ import androidx.compose.ui.graphics.toArgb
  val origin=RouteVertex(fix.latitude,fix.longitude);val goal=RouteVertex(target.latitude,target.longitude)
  val distance=targetMetrics(origin.lat,origin.lon,goal.lat,goal.lon).meters
  val range=max(40.0,max(distance*1.4,session.start?.let{targetMetrics(origin.lat,origin.lon,it.lat,it.lon).meters*1.2}?:0.0))/zoom
- Canvas(Modifier.fillMaxWidth().height(300.dp)){
+ Canvas(Modifier.fillMaxWidth().height(240.dp)){
  val scale=size.minDimension/2/range
  fun pos(p:RouteVertex):Offset{val m=targetMetrics(origin.lat,origin.lon,p.lat,p.lon);val a=Math.toRadians((m.bearing?:0.0)-reference);return Offset(center.x+(sin(a)*m.meters*scale).toFloat(),center.y-(cos(a)*m.meters*scale).toFloat())}
  for(i in 1..4){val x=size.width*i/5;val y=size.height*i/5;drawLine(ink.copy(alpha=.12f),Offset(x,0f),Offset(x,size.height));drawLine(ink.copy(alpha=.12f),Offset(0f,y),Offset(size.width,y))}
@@ -39,5 +39,5 @@ import androidx.compose.ui.graphics.toArgb
  Row{TextButton(onClick={zoom=(zoom/1.5f).coerceAtLeast(.25f)}){Text("−")};TextButton(onClick={zoom=1f}){Text(if(LocalArabic.current)"تلقائي" else "Auto")};TextButton(onClick={zoom=(zoom*1.5f).coerceAtMost(8f)}){Text("+")}}
  FilterChip(showWrecks,{showWrecks=!showWrecks},label={Text(if(LocalArabic.current)"الحطام التاريخي (غير مؤكد)" else "Historical wrecks (unverified)")})
  Text(ltrValue(if(distance<1)"< 1 m" else distanceLabel(distance,unit)))
- Text(if(LocalArabic.current)"الأخضر: موقعك وخط الهدف • البرتقالي: الهدف • الأزرق: أثر الحركة" else "Green: position and target line • Orange: target • Blue: trail")
+ Text(if(LocalArabic.current)"الأخضر: موقعك وخط الهدف • البرتقالي: الهدف • الأزرق: أثر الحركة • الأبيض: البداية" else "Green: position and target line • Orange: target • Blue: trail • White: start")
 }

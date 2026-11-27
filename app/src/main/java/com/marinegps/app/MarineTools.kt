@@ -22,7 +22,8 @@ import kotlinx.coroutines.withContext
  var extra by remember{mutableStateOf(false)}
  if(extra){FishingTools(s,unit){extra=false};return}
  var radius by remember{mutableIntStateOf(50)};var query by remember{mutableStateOf("")}
- val fix=currentFix(s);val nearby=(if(fix==null)rows.map{it to Double.NaN} else nearbyWrecks(rows,fix.latitude,fix.longitude,radius)).filter{it.first.name.contains(query,true)||it.first.id.contains(query)}
+ var depthFilter by remember{mutableIntStateOf(0)}
+ val fix=currentFix(s);val nearby=(if(fix==null)rows.map{it to Double.NaN} else nearbyWrecks(rows,fix.latitude,fix.longitude,radius)).filter{(it.first.name.contains(query,true)||it.first.id.contains(query)) && when(depthFilter){1->it.first.depth!=null;2->it.first.depth?.let{d->d<=20}==true;3->it.first.depth==null;else->true}}
  Column(Modifier.fillMaxSize()){
  TextButton(onClick={extra=true}){Text(label("أدوات الصيد والانجراف والرسو","Fishing, drift & anchor tools"))}
  Text(label("الحطام البحري","Marine wrecks"),style=MaterialTheme.typography.titleLarge)
@@ -31,15 +32,16 @@ import kotlinx.coroutines.withContext
  TextButton(onClick={picker.launch(arrayOf("*/*"))}){Text(label("استيراد ملف UKHO GeoJSON","Import UKHO GeoJSON"))}
  Text(label("النتائج: ","Results: ")+nearby.size+" / "+rows.size)
  if(message.isNotBlank())Text(message)
- if(fix==null)Text(label("انتظار GPS","Waiting for GPS"))
+ if(fix==null)Text(label("كل السجلات — المسافة تحتاج GPS","All records — distance needs GPS"))
  OutlinedTextField(query,{query=it},label={Text(label("بحث","Search"))},modifier=Modifier.fillMaxWidth())
- Row{listOf(10,25,50,100).forEach{v->FilterChip(radius==v,{radius=v},label={Text(ltrValue("$v km"))},modifier=Modifier.weight(1f))}}
+ Row{listOf(10,25,50,100).forEach{v->FilterChip(radius==v,{radius=v},enabled=fix!=null,label={Text(ltrValue("$v km"))},modifier=Modifier.weight(1f))}}
+ Row{listOf(label("الكل","All"),label("عمق معروف","Known"),"≤ 20 m",label("مجهول","Unknown")).forEachIndexed{i,v->FilterChip(depthFilter==i,{depthFilter=i},label={Text(ltrValue(v),style=MaterialTheme.typography.labelSmall)},modifier=Modifier.weight(1f))}}
  LazyColumn(Modifier.weight(1f)){items(nearby,key={it.first.id}){(w,d)->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(10.dp)){
  Text(if(ar&&w.name.startsWith("Wreck "))"حطام "+w.id else w.name);Text(if(d.isFinite())ltrValue(distanceLabel(d,unit)) else label("المسافة غير متاحة","Distance unavailable"));Text(ltrValue("${w.lat}, ${w.lon}"))
- Text(label("أقل عمق: ","Least depth: ")+(w.depth?.let{"$it m"}?:label("غير معروف","Unknown")))
- Text(label("عمق الماء: ","Water depth: ")+(w.water?.let{"$it m"}?:label("غير معروف","Unknown")))
+ Text(label("أقل عمق: ","Least depth: ")+(w.depth?.let{ltrValue("$it m")}?:label("غير معروف","Unknown")))
+ Text(label("عمق الماء: ","Water depth: ")+(w.water?.let{ltrValue("$it m")}?:label("غير معروف","Unknown")))
  Text(listOf(w.status,w.quality).filterNot{it.isBlank()||it.equals("n/a",true)||it.equals("unknown",true)}.joinToString(" • ").ifBlank{label("البيانات غير متوفرة","Data unavailable")})
- TextButton(onClick={navigate(Waypoint(name=w.name,latitude=w.lat,longitude=w.lon,category="Hazard",notes="Historical wreck; not verified",createdAt=System.currentTimeMillis()))}){Text(label("الاتجاه نحو الإحداثيات","Go to coordinates"))}
+ TextButton(enabled=fix!=null,onClick={navigate(Waypoint(name=w.name,latitude=w.lat,longitude=w.lon,category="Hazard",notes="Historical wreck; not verified",createdAt=System.currentTimeMillis()))}){Text(label("الاتجاه نحو الإحداثيات","Go to coordinates"))}
  TextButton(onClick={scope.launch{WaypointDb.get(c).points().insert(Waypoint(name=w.name,latitude=w.lat,longitude=w.lon,category="Hazard",notes="Historical wreck ${w.id}; source: "+(if(file.exists())"user import" else "UKHO/EMODnet")+"; not verified; not for navigation",createdAt=System.currentTimeMillis()));message=label("تم الحفظ كموقع خطر","Saved as hazard waypoint")}}){Text(label("حفظ الموقع","Save waypoint"))}
  }}}}
  var licence by remember{mutableStateOf(false)}

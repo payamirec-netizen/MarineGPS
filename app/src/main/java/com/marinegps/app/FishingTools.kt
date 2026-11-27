@@ -18,27 +18,25 @@ internal fun readBounded(input:java.io.InputStream):ByteArray{
  fun label(a:String,e:String)=if(ar)a else e
  val prefs=remember{c.getSharedPreferences("marine_fishing",0)}
  var log by remember{mutableStateOf(prefs.getString("log","").orEmpty())}
- var note by remember{mutableStateOf("")}
+
  val fix=currentFix(s)
  val anchor by AnchorMonitor.state.collectAsState()
  var radius by remember{mutableIntStateOf(50)}
- var drift by remember{mutableStateOf<Pair<RouteVertex,Long>?>(null)}
+ var drift by remember{mutableStateOf<android.location.Location?>(null)}
  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
  Text(label("أدوات الصيد","Fishing tools"),style=MaterialTheme.typography.titleLarge)
  fix?.let{val date=java.time.LocalDate.now();val times=sunTimes(date,it.latitude,it.longitude);Text(label("الشروق والغروب (تقريبي)","Sunrise / sunset (approx.)"));val fmt=java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(java.time.ZoneId.systemDefault());Text(label("الشروق: ","Sunrise: ")+(times?.get(0)?.let{fmt.format(it)}?:"—"));Text(label("الغروب: ","Sunset: ")+(times?.get(1)?.let{fmt.format(it)}?:"—"))}
- Text(label("سجل المصيد","Catch log"))
- OutlinedTextField(note,{note=it.take(500)},label={Text(label("تفاصيل المصيد","Catch details"))})
- Button(onClick={val entry=java.text.DateFormat.getDateTimeInstance().format(java.util.Date())+" • "+note;log=(entry+"\n"+log).take(100000);prefs.edit().putString("log",log).apply();note=""},enabled=note.isNotBlank()){Text(label("حفظ","Save"))}
+ CatchLog(fix)
  Text(log)
  Text(label("قياس الانجراف","Drift measurement"))
- Button(onClick={fix?.let{drift=RouteVertex(it.latitude,it.longitude) to it.elapsedRealtimeNanos}},enabled=fix!=null){Text(label("بدء / إعادة القياس","Start / reset measurement"))}
+ Button(onClick={fix?.let{drift=android.location.Location(it)}},enabled=fix!=null){Text(label("بدء / إعادة القياس","Start / reset measurement"))}
  if(drift!=null)TextButton(onClick={drift=null}){Text(label("إيقاف القياس","Stop measurement"))}
- drift?.let{(p,t)->fix?.let{val sec=(it.elapsedRealtimeNanos-t)/1e9;val m=targetMetrics(p.lat,p.lon,it.latitude,it.longitude);if(sec>0)Text(ltrValue(speedLabel(m.meters/sec,"kn")+" • "+(m.bearing?.let{b->fmtPoint(b,1)+"°"}?:"—")))}}
+ drift?.let{p->if(fix==null)Text(label("انتظار GPS","Waiting for GPS")) else {val sec=(fix.elapsedRealtimeNanos-p.elapsedRealtimeNanos)/1e9;val m=targetMetrics(p.latitude,p.longitude,fix.latitude,fix.longitude);Text(label("المدة: ","Duration: ")+sec.coerceAtLeast(0.0).toInt()+" s");Text(label("الإزاحة: ","Displacement: ")+ltrValue(distanceLabel(m.meters,unit)));Text(label("دقة GPS: ","GPS accuracy: ")+ltrValue(fmtPoint(fix.accuracy.toDouble(),1)+" m"));if(sec>=10&&m.meters>p.accuracy+fix.accuracy)Text(ltrValue(speedLabel(m.meters/sec,"kn")+" • "+(m.bearing?.let{b->fmtPoint(b,1)+"°"}?:"—")))else Text(label("الحركة غير مؤكدة","Movement uncertain"))}}
  Text(label("تنبيه الرسو التجريبي — خدمة خلفية، لا تعتمد عليه وحده","Experimental background anchor alert — not a safety device"))
  Row{listOf(25,50,100).forEach{v->FilterChip(radius==v,{radius=v},enabled=!anchor.active,label={Text(ltrValue("$v m"))})}}
  Button(onClick={if(anchor.active)c.stopService(android.content.Intent(c,AnchorService::class.java)) else fix?.let{runCatching{androidx.core.content.ContextCompat.startForegroundService(c,android.content.Intent(c,AnchorService::class.java).putExtra("lat",it.latitude).putExtra("lon",it.longitude).putExtra("radius",radius))}}},enabled=anchor.active||fix!=null){Text(if(anchor.active)label("إيقاف","Stop") else label("تعيين نقطة الرسو","Set anchor"))}
  Text(when(anchor.status){"Monitoring"->label("مراقبة النطاق","Monitoring");"Outside radius"->label("خارج النطاق","Outside radius");"GPS unavailable"->label("GPS غير متاح","GPS unavailable");else->anchor.status})
- anchor.distance?.let{Text(ltrValue(distanceLabel(it,unit)))}
+ anchor.distance?.let{Text(ltrValue(distanceLabel(it,unit)));AnchorRange(it,anchor.radius)}
  OutlinedButton(onClick=back){Text(label("رجوع","Back"))}
  }
 }

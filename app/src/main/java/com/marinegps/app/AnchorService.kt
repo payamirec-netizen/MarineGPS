@@ -6,7 +6,7 @@ import android.os.*
 import android.media.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
-internal data class AnchorState(val active:Boolean=false,val distance:Double?=null,val status:String="Stopped")
+internal data class AnchorState(val active:Boolean=false,val distance:Double?=null,val status:String="Stopped",val radius:Int=50)
 internal object AnchorMonitor{val state=MutableStateFlow(AnchorState())}
 internal fun anchorStatus(distance:Double?,radius:Int)=if(distance==null)"GPS unavailable" else if(distance>=radius)"Outside radius" else "Monitoring"
 class AnchorService:Service(),LocationListener{
@@ -30,8 +30,8 @@ class AnchorService:Service(),LocationListener{
  val lat=intent?.getDoubleExtra("lat",Double.NaN)?:Double.NaN;val lon=intent?.getDoubleExtra("lon",Double.NaN)?:Double.NaN
  if(!validCoordinates(lat,lon)){stopSelf();return START_NOT_STICKY}
  radius=intent?.getIntExtra("radius",50)?.coerceIn(25,100)?:50
- try{startForeground(91,notification("Acquiring GPS"));origin=RouteVertex(lat,lon);AnchorMonitor.state.value=AnchorState(true,null,"Acquiring GPS");wake=getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"MarineGPS:Anchor").apply{acquire()};manager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,0f,this,Looper.getMainLooper())}catch(e:Exception){stopSelf();return START_NOT_STICKY}
- job=scope.launch{while(isActive){val a=origin?:break;val l=last?.takeIf{SystemClock.elapsedRealtime()-it.elapsedRealtimeNanos/1000000 in 0..10000};val d=l?.let{targetMetrics(a.lat,a.lon,it.latitude,it.longitude).meters};val status=anchorStatus(d,radius);AnchorMonitor.state.value=AnchorState(true,d,status);getSystemService(NotificationManager::class.java).notify(91,notification(status));if(status!="Monitoring"){runCatching{val t=ToneGenerator(AudioManager.STREAM_ALARM,100);try{t.startTone(ToneGenerator.TONE_PROP_BEEP2,800);delay(900)}finally{t.release()}};runCatching{getSystemService(Vibrator::class.java).vibrate(VibrationEffect.createOneShot(500,VibrationEffect.DEFAULT_AMPLITUDE))}};delay(4000)}}
+ try{startForeground(91,notification("Acquiring GPS"));origin=RouteVertex(lat,lon);AnchorMonitor.state.value=AnchorState(true,null,"Acquiring GPS",radius);wake=getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"MarineGPS:Anchor").apply{acquire()};manager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,0f,this,Looper.getMainLooper())}catch(e:Exception){stopSelf();return START_NOT_STICKY}
+ job=scope.launch{while(isActive){val a=origin?:break;val l=last?.takeIf{SystemClock.elapsedRealtime()-it.elapsedRealtimeNanos/1000000 in 0..10000};val d=l?.let{targetMetrics(a.lat,a.lon,it.latitude,it.longitude).meters};val status=anchorStatus(d,radius);AnchorMonitor.state.value=AnchorState(true,d,status,radius);getSystemService(NotificationManager::class.java).notify(91,notification(status));if(status!="Monitoring"){runCatching{val t=ToneGenerator(AudioManager.STREAM_ALARM,100);try{t.startTone(ToneGenerator.TONE_PROP_BEEP2,800);delay(900)}finally{t.release()}};runCatching{getSystemService(Vibrator::class.java).vibrate(VibrationEffect.createOneShot(500,VibrationEffect.DEFAULT_AMPLITUDE))}};delay(4000)}}
  return START_NOT_STICKY
  }
  override fun onLocationChanged(l:Location){if(l.hasAccuracy()&&l.accuracy in 0f..30f&&validCoordinates(l.latitude,l.longitude)&&freshFix(SystemClock.elapsedRealtime()-l.elapsedRealtimeNanos/1000000))last=Location(l)}
