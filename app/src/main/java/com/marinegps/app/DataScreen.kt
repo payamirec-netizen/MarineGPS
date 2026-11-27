@@ -23,6 +23,8 @@ import androidx.room.withTransaction
  var message by remember{mutableStateOf("")}
  var busy by remember{mutableStateOf(false)}
  var pending by remember{mutableStateOf<TransferData?>(null)}
+ var catchImport by remember{mutableStateOf<String?>(null)}
+ val fishing=c.getSharedPreferences("marine_fishing",0)
  var output by remember{mutableStateOf("")}
  var qr by remember{mutableStateOf<TransferPoint?>(null)}
  val prefs=c.getSharedPreferences("marine_settings",0)
@@ -31,17 +33,17 @@ import androidx.room.withTransaction
  var edit by remember{mutableStateOf<Track?>(null)}
  var delete by remember{mutableStateOf<Track?>(null)}
  var name by remember{mutableStateOf("")}
- val camera=rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()){bitmap->if(bitmap!=null)scope.launch{try{pending=withContext(Dispatchers.Default){decodeQrBitmap(bitmap)};message="Review QR waypoint"}catch(e:Exception){message="QR rejected: "+e.message}finally{bitmap.recycle()}}}
- val scan=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri->if(uri!=null)scope.launch{try{val p=withContext(Dispatchers.IO){readQrData(c,uri)};pending=p;message="Review QR waypoint"}catch(e:Exception){message="QR rejected: "+e.message}}}
+ val camera=rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()){bitmap->if(bitmap!=null)scope.launch{try{catchImport=null;pending=withContext(Dispatchers.Default){decodeQrBitmap(bitmap)};message="Review QR waypoint"}catch(e:Exception){message="QR rejected: "+e.message}finally{bitmap.recycle()}}}
+ val scan=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri->if(uri!=null)scope.launch{try{val p=withContext(Dispatchers.IO){readQrData(c,uri)};catchImport=null;pending=p;message="Review QR waypoint"}catch(e:Exception){message="QR rejected: "+e.message}}}
  val save=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")){uri->
  if(uri!=null)scope.launch{busy=true;try{withContext(Dispatchers.IO){c.contentResolver.openOutputStream(uri)?.use{it.write(output.toByteArray(Charsets.UTF_8))}?:error("Cannot open file")};message="Export saved"}catch(e:Exception){message="Export failed: "+e.message}finally{busy=false}}
  }
  val open=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->
- if(uri!=null)scope.launch{busy=true;try{pending=withContext(Dispatchers.IO){val raw=c.contentResolver.openInputStream(uri)?.use{it.readBytesLimited()}?:error("Cannot read file");require(raw.size<=8_000_000);raw.toString(Charsets.UTF_8).let{if(it.trimStart().startsWith("{"))restore(it) else parseGpx(it)}};message="Review import before saving"}catch(e:Exception){message="Import rejected: "+e.message}finally{busy=false}}
+ if(uri!=null)scope.launch{busy=true;try{catchImport=null;val imported=withContext(Dispatchers.IO){val raw=c.contentResolver.openInputStream(uri)?.use{it.readBytesLimited()}?:error("Cannot read file");require(raw.size<=8_000_000);raw.toString(Charsets.UTF_8).let{if(it.trimStart().startsWith("{")){val j=org.json.JSONObject(it);val catches=j.optJSONArray("catchEntries")?.let{a->validateCatchEntries(a).toString()};restore(it) to catches}else parseGpx(it) to null}};pending=imported.first;catchImport=imported.second;message="Review import before saving"}catch(e:Exception){message="Import rejected: "+e.message}finally{busy=false}}
  }
  fun export(ext:String,share:Boolean=false){scope.launch{busy=true;try{
  val data=withContext(Dispatchers.IO){TransferData(wd.points().observe().first().map{TransferPoint(it.name,it.latitude,it.longitude,it.notes,it.createdAt,it.category,it.accuracy)},td.tracks().observe().first().filter{it.ended!=null}.map{t->TransferTrack(t.name.ifBlank{"Track "+t.started},td.tracks().points(t.id).first().groupBy{it.segment}.values.map{s->s.map{TransferPoint("",it.lat,it.lon,time=it.time,accuracy=it.accuracy)}},t.started,t.ended,t.activeMillis,t.meters,t.maxSpeed)},prefs.all.filterValues{it is String}.mapValues{it.value.toString()})}
- output=withContext(Dispatchers.Default){when(ext){"gpx"->gpx(data);"kml"->kml(data);"json"->backup(data);else->csv(data)}}
+ output=withContext(Dispatchers.Default){when(ext){"gpx"->gpx(data);"kml"->kml(data);"json"->org.json.JSONObject(backup(data)).put("catchEntries",validateCatchEntries(org.json.JSONArray(fishing.getString("entries","[]")))).toString();else->csv(data)}}
  if(share)shareFile(c,ext,output) else save.launch("MarineGPS."+ext)
  }catch(e:Exception){message="Export failed: "+e.message}finally{busy=false}}}
  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
@@ -66,7 +68,7 @@ import androidx.room.withTransaction
  require(td.tracks().active()==null){"Stop recording before import"}
  wd.withTransaction{val existing=wd.points().observe().first().map{Triple(it.name,it.latitude,it.longitude)}.toMutableSet();d.points.forEach{p->if(existing.add(Triple(p.name.ifBlank{"Imported waypoint"},p.lat,p.lon)))wd.points().insert(Waypoint(name=p.name.ifBlank{"Imported waypoint"},latitude=p.lat,longitude=p.lon,category=p.category,notes=p.notes,createdAt=p.time?:System.currentTimeMillis(),accuracy=p.accuracy))}}
  td.withTransaction{val existing=td.tracks().observe().first().filter{it.ended!=null}.map{t->trackKey(td.tracks().points(t.id).first().groupBy{it.segment}.values.map{s->s.map{TransferPoint("",it.lat,it.lon,time=it.time)}})}.toMutableSet();d.tracks.forEach{t->if(t.segments.flatten().isEmpty()||!existing.add(trackKey(t.segments)))return@forEach;val now=System.currentTimeMillis();val meters=t.segments.sumOf{s->s.zipWithNext().sumOf{(a,b)->targetMetrics(a.lat,a.lon,b.lat,b.lon).meters}};val id=td.tracks().insert(Track(started=t.started?:t.segments.flatten().mapNotNull{it.time}.minOrNull()?:now,ended=t.ended?:t.segments.flatten().mapNotNull{it.time}.maxOrNull()?:now,meters=t.meters?:meters,state="saved",name=t.name,activeMillis=t.activeMillis,maxSpeed=t.maxSpeed));t.segments.forEachIndexed{i,s->s.forEach{p->td.tracks().point(TrackPoint(trackId=id,time=p.time?:now,lat=p.lat,lon=p.lon,accuracy=p.accuracy?:0f,segment=i.toLong()))}}}}
- prefs.edit().apply{d.settings.forEach{(k,v)->putString(k,v)}}.apply();message="Import completed; reopen app to apply restored settings"
+ catchImport?.let{raw->val old=validateCatchEntries(org.json.JSONArray(fishing.getString("entries","[]")));val incoming=validateCatchEntries(org.json.JSONArray(raw));val merged=org.json.JSONArray();val ids=mutableSetOf<String>();for(a in listOf(old,incoming))for(i in 0 until a.length()){val v=a.getJSONObject(i);if(ids.add(v.getString("id")))merged.put(v)};fishing.edit().putString("entries",merged.toString()).apply()};catchImport=null; prefs.edit().apply{d.settings.forEach{(k,v)->putString(k,v)}}.apply();message="Import completed; reopen app to apply restored settings"
  }catch(e:Exception){message="Import interrupted; some data may have been saved: "+e.message}finally{busy=false}}}){Text(tr("Import"))}})}
  }
 }

@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.toArgb
 @Composable internal fun NavigationPlot(fix:Location?,target:Waypoint,reference:Double?,unit:String,session:NavigationSession){
  val context=androidx.compose.ui.platform.LocalContext.current
  var wrecks by remember{mutableStateOf(emptyList<Wreck>())}
- var showWrecks by remember{mutableStateOf(false)}
+ var showWrecks by session::showWrecks
  LaunchedEffect(showWrecks){if(showWrecks)wrecks=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){runCatching{loadWreckCatalogue(context)}.getOrDefault(emptyList())}}
  val trail=session.trail
  var zoom by session::zoom
