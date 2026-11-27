@@ -17,7 +17,7 @@ import kotlinx.coroutines.withContext
  fun label(a:String,e:String)=if(ar)a else e
  val file=remember{java.io.File(c.filesDir,"wrecks-ukho.geojson")}
  var rows by remember{mutableStateOf(emptyList<Wreck>())};var message by remember{mutableStateOf("")}
- LaunchedEffect(Unit){rows=withContext(Dispatchers.IO){runCatching{parseWrecks(if(file.exists())file.readText() else c.assets.open("wrecks-ukho.geojson").bufferedReader().use{it.readText()})}.getOrDefault(emptyList())}}
+ LaunchedEffect(Unit){rows=withContext(Dispatchers.IO){runCatching{loadWreckCatalogue(c)}.getOrDefault(emptyList())}}
  val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)scope.launch{runCatching{withContext(Dispatchers.IO){val bytes=c.contentResolver.openInputStream(uri)!!.use{readBounded(it)};require(bytes.size<=8000000);val raw=bytes.toString(Charsets.UTF_8);val parsed=parseWrecks(raw);require(parsed.isNotEmpty());val atomic=android.util.AtomicFile(file);val stream=atomic.startWrite();try{stream.write(bytes);atomic.finishWrite(stream)}catch(e:Exception){atomic.failWrite(stream);throw e};parsed}}.onSuccess{rows=it;message=""}.onFailure{message=label("ملف غير صالح","Invalid file")}}}
  var extra by remember{mutableStateOf(false)}
  if(extra){FishingTools(s,unit){extra=false};return}
@@ -27,7 +27,7 @@ import kotlinx.coroutines.withContext
  TextButton(onClick={extra=true}){Text(label("أدوات الصيد والانجراف والرسو","Fishing, drift & anchor tools"))}
  Text(label("الحطام البحري","Marine wrecks"),style=MaterialTheme.typography.titleLarge)
  Text(label("سجلات تاريخية — ليست للملاحة الآمنة","Historical records — not for safe navigation"),color=MaterialTheme.colorScheme.error)
- Text("UKHO / EMODnet • Open Government Licence")
+ Text(if(file.exists())label("بيانات مستوردة — تحقق من المصدر","Imported data — verify source") else "UKHO / EMODnet • Open Government Licence")
  TextButton(onClick={picker.launch(arrayOf("*/*"))}){Text(label("استيراد ملف UKHO GeoJSON","Import UKHO GeoJSON"))}
  Text(label("عدد السجلات: ","Records: ")+rows.size)
  if(message.isNotBlank())Text(message)
@@ -40,7 +40,7 @@ import kotlinx.coroutines.withContext
  Text(label("عمق الماء: ","Water depth: ")+(w.water?.let{"$it m"}?:label("غير معروف","Unknown")))
  Text(w.status+" • "+w.quality)
  TextButton(onClick={navigate(Waypoint(name=w.name,latitude=w.lat,longitude=w.lon,category="Hazard",notes="Historical wreck; not verified",createdAt=System.currentTimeMillis()))}){Text(label("الاتجاه نحو الإحداثيات","Go to coordinates"))}
- TextButton(onClick={scope.launch{WaypointDb.get(c).points().insert(Waypoint(name=w.name,latitude=w.lat,longitude=w.lon,category="Hazard",notes="UKHO/EMODnet historical wreck ${w.id}; not verified; not for navigation",createdAt=System.currentTimeMillis()));message=label("تم الحفظ كموقع خطر","Saved as hazard waypoint")}}){Text(label("حفظ الموقع","Save waypoint"))}
+ TextButton(onClick={scope.launch{WaypointDb.get(c).points().insert(Waypoint(name=w.name,latitude=w.lat,longitude=w.lon,category="Hazard",notes="Historical wreck ${w.id}; source: "+(if(file.exists())"user import" else "UKHO/EMODnet")+"; not verified; not for navigation",createdAt=System.currentTimeMillis()));message=label("تم الحفظ كموقع خطر","Saved as hazard waypoint")}}){Text(label("حفظ الموقع","Save waypoint"))}
  }}}}
  Text("Contains public sector information licensed under the Open Government Licence v3.0. Source: UKHO via EMODnet.",style=MaterialTheme.typography.bodySmall)
  OutlinedButton(onClick=back,modifier=Modifier.fillMaxWidth()){Text(label("رجوع","Back"))}

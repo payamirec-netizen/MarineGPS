@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.toArgb
  val context=androidx.compose.ui.platform.LocalContext.current
  var wrecks by remember{mutableStateOf(emptyList<Wreck>())}
  var showWrecks by remember{mutableStateOf(false)}
- LaunchedEffect(showWrecks){if(showWrecks)wrecks=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){runCatching{parseWrecks(context.assets.open("wrecks-ukho.geojson").bufferedReader().use{it.readText()})}.getOrDefault(emptyList())}}
+ LaunchedEffect(showWrecks){if(showWrecks)wrecks=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){runCatching{loadWreckCatalogue(context)}.getOrDefault(emptyList())}}
  val trail=session.trail
  var zoom by session::zoom
  val ink=MaterialTheme.colorScheme.onSurface;val accent=MaterialTheme.colorScheme.primary
