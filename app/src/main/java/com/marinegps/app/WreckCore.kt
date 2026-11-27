@@ -6,7 +6,7 @@ internal fun parseWrecks(raw:String):List<Wreck>{
  val arr=JSONObject(raw).getJSONArray("features")
  val out=mutableListOf<Wreck>()
  for(i in 0 until arr.length()){
- val f=arr.getJSONObject(i);val geo=f.optJSONObject("geometry")?:continue
+ val f=arr.optJSONObject(i)?:continue;val geo=f.optJSONObject("geometry")?:continue
  if(geo.optString("type")!="Point")continue
  val c=geo.optJSONArray("coordinates")?:continue;val lon=c.optDouble(0);val lat=c.optDouble(1)
  if(!validCoordinates(lat,lon)||lat !in 10.0..19.0||lon !in 40.0..56.0)continue

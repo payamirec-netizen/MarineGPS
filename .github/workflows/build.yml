@@ -60,6 +60,12 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions app/build/outputs/apk/debug/app-debug.apk > permissions.txt
           if grep -Fq android.permission.INTERNET permissions.txt; then exit 1; fi
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > apk-info.txt
+      - name: Record build provenance
+        run: |
+          git rev-parse HEAD > build-provenance.txt
+          java -version 2>> build-provenance.txt
+          gradle --version >> build-provenance.txt
+          sha256sum app/src/main/assets/wrecks-ukho.geojson app/build/outputs/apk/debug/app-debug.apk >> build-provenance.txt
       - uses: actions/upload-artifact@v4
         with:
           name: MarineGPS-debug
@@ -68,4 +74,6 @@ jobs:
             signing-report.txt
             permissions.txt
             apk-info.txt
+            build-provenance.txt
+            app/src/main/assets/wrecks-ukho.geojson
             app/build/test-results/testDebugUnitTest/*.xml
