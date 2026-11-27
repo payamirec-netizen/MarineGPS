@@ -18,10 +18,13 @@ import kotlinx.coroutines.withContext
  val file=remember{java.io.File(c.filesDir,"wrecks-ukho.geojson")}
  var rows by remember{mutableStateOf(emptyList<Wreck>())};var message by remember{mutableStateOf("")}
  LaunchedEffect(Unit){rows=withContext(Dispatchers.IO){runCatching{parseWrecks(if(file.exists())file.readText() else c.assets.open("wrecks-ukho.geojson").bufferedReader().use{it.readText()})}.getOrDefault(emptyList())}}
- val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)scope.launch{runCatching{withContext(Dispatchers.IO){val bytes=c.contentResolver.openInputStream(uri)!!.use{it.readNBytes(8000001)};require(bytes.size<=8000000);val raw=bytes.toString(Charsets.UTF_8);val parsed=parseWrecks(raw);require(parsed.isNotEmpty());file.writeText(raw);parsed}}.onSuccess{rows=it;message=""}.onFailure{message=label("ملف غير صالح","Invalid file")}}}
+ val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)scope.launch{runCatching{withContext(Dispatchers.IO){val bytes=c.contentResolver.openInputStream(uri)!!.use{readBounded(it)};require(bytes.size<=8000000);val raw=bytes.toString(Charsets.UTF_8);val parsed=parseWrecks(raw);require(parsed.isNotEmpty());val atomic=android.util.AtomicFile(file);val stream=atomic.startWrite();try{stream.write(bytes);atomic.finishWrite(stream)}catch(e:Exception){atomic.failWrite(stream);throw e};parsed}}.onSuccess{rows=it;message=""}.onFailure{message=label("ملف غير صالح","Invalid file")}}}
+ var extra by remember{mutableStateOf(false)}
+ if(extra){FishingTools(s,unit){extra=false};return}
  var radius by remember{mutableIntStateOf(50)};var query by remember{mutableStateOf("")}
  val fix=currentFix(s);val nearby=if(fix==null)emptyList() else nearbyWrecks(rows,fix.latitude,fix.longitude,radius).filter{it.first.name.contains(query,true)||it.first.id.contains(query)}
  Column(Modifier.fillMaxSize()){
+ TextButton(onClick={extra=true}){Text(label("أدوات الصيد والانجراف والرسو","Fishing, drift & anchor tools"))}
  Text(label("الحطام البحري","Marine wrecks"),style=MaterialTheme.typography.titleLarge)
  Text(label("سجلات تاريخية — ليست للملاحة الآمنة","Historical records — not for safe navigation"),color=MaterialTheme.colorScheme.error)
  Text("UKHO / EMODnet • Open Government Licence")

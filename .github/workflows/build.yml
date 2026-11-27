@@ -31,6 +31,8 @@ jobs:
           actual=$(keytool -exportcert -keystore "$MARINE_KEYSTORE_PATH" -storepass android -alias androiddebugkey | sha256sum | cut -d" " -f1)
           echo "MARINE_CERT_SHA256=$actual" >> "$GITHUB_ENV"
           echo "Restored certificate SHA-256: $actual"
+      - name: Fetch and validate licensed regional wreck dataset
+        run: python3 research/bundle_wrecks.py
       - name: Build APK with retry on rate limits
         shell: bash
         run: |
