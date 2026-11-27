@@ -33,12 +33,13 @@ internal data class HeadingInfo(val heading:Double?,val status:String)
   val rotation=manager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
   var previous:Double?=null
   var quality=SensorManager.SENSOR_STATUS_UNRELIABLE
+  val matrix=FloatArray(9);val remapped=FloatArray(9);val angles=FloatArray(3)
   val listener=object:SensorEventListener{
    override fun onAccuracyChanged(sensor:Sensor?,accuracy:Int){quality=accuracy;if(accuracy<SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM){reading=null;previous=null;status="Low accuracy — calibrate away from metal"}}
    override fun onSensorChanged(event:SensorEvent){
     quality=event.accuracy
     if(quality<SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM||(event.values.size>=5&&event.values[4]>=0&&event.values[4]>Math.toRadians(25.0))){reading=null;previous=null;status="Low accuracy or excessive tilt";return}
-    val matrix=FloatArray(9);val remapped=FloatArray(9);val angles=FloatArray(3)
+    if(event.values.size<3||event.values.any{!it.isFinite()}){reading=null;previous=null;status="Invalid sensor reading";return}
     SensorManager.getRotationMatrixFromVector(matrix,event.values)
     val display=(context.getSystemService(android.content.Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
     val axes=when(display){Surface.ROTATION_90->SensorManager.AXIS_Y to SensorManager.AXIS_MINUS_X;Surface.ROTATION_180->SensorManager.AXIS_MINUS_X to SensorManager.AXIS_MINUS_Y;Surface.ROTATION_270->SensorManager.AXIS_MINUS_Y to SensorManager.AXIS_X;else->SensorManager.AXIS_X to SensorManager.AXIS_Y}

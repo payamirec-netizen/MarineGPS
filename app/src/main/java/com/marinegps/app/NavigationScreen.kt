@@ -18,7 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import kotlin.math.*
 
-internal fun distanceLabel(m:Double,unit:String)=if(m<1000)fmtPoint(m,0)+" m" else fmtPoint(m/when(unit){"NM"->1852.0;"mi"->1609.344;else->1000.0},2)+" "+unit
+internal fun distanceLabel(m:Double,unit:String)=if(!m.isFinite()||m<0)"—" else if(m>0&&m<1)"< 1 m" else if(m<1000)fmtPoint(m,0)+" m" else fmtPoint(m/when(unit){"NM"->1852.0;"mi"->1609.344;else->1000.0},2)+" "+unit
 internal fun usableBearing(m:TargetMetrics,accuracy:Float?,saved:Float?):Double? {
  if(accuracy==null||!accuracy.isFinite()||accuracy<0)return null
  val uncertainty=accuracy.toDouble()+(saved?.takeIf{it.isFinite()&&it>=0}?:0f)
@@ -27,7 +27,7 @@ internal fun usableBearing(m:TargetMetrics,accuracy:Float?,saved:Float?):Double?
 internal fun speedLabel(mps:Double,unit:String)=fmtPoint(mps*when(unit){"kn"->3600.0/1852;"km/h"->3.6;else->1.0},1)+" "+unit
 internal fun courseReason(speed:Double?,bearing:Double?,accuracy:Double?):String? = when {speed==null||!speed.isFinite()->"Speed unavailable";speed<0.5->"Moving too slowly";bearing==null||!bearing.isFinite()->"GPS course unavailable";accuracy!=null&&(!accuracy.isFinite()||accuracy<0||accuracy>30)->"GPS course accuracy low";else->null}
 internal fun etaSeconds(m:Double,speed:Double?,course:Double?,bearing:Double?):Double? {
- if(speed==null||course==null||bearing==null||!speed.isFinite()||speed<0.5)return null
+ if(!m.isFinite()||m<0||speed==null||course==null||bearing==null||!course.isFinite()||!bearing.isFinite()||!speed.isFinite()||speed<0.5)return null
  val closing=speed*cos(Math.toRadians(bearing-course))
  return if(closing>0.3)m/closing else null
 }
