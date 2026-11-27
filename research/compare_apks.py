@@ -6,7 +6,14 @@ def signing_block(path):
     cd=struct.unpack_from('<I',b,e+16)[0]
     if b[cd-16:cd]!=b'APK Sig Block 42': return None
     size=struct.unpack_from('<Q',b,cd-24)[0]
-    return sha(b[cd-size-8:cd])
+    pos=cd-size
+    result={}
+    while pos<cd-24:
+        length,ident=struct.unpack_from('<QI',b,pos)
+        if length<4 or pos+8+length>cd-24: raise ValueError("Invalid signing block")
+        result[hex(ident)]=sha(b[pos+12:pos+8+length])
+        pos+=8+length
+    return result
 a,b=sys.argv[1:3]
 with zipfile.ZipFile(a) as x,zipfile.ZipFile(b) as y:
     print('Entry order identical:',x.namelist()==y.namelist())

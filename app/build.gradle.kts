@@ -12,6 +12,7 @@ android {
   }
  }
  buildTypes { getByName("debug") { signingConfig = signingConfigs.getByName("debug") }; getByName("release") { signingConfig = signingConfigs.getByName("debug"); isDebuggable = false; isMinifyEnabled = false } }
+ dependenciesInfo { includeInApk = false }
  buildFeatures { compose = true; buildConfig = true }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
 }
