@@ -29,6 +29,7 @@ jobs:
           chmod 600 "$MARINE_KEYSTORE_PATH"
           keytool -list -keystore "$MARINE_KEYSTORE_PATH" -storepass android -alias androiddebugkey >/dev/null
           actual=$(keytool -exportcert -keystore "$MARINE_KEYSTORE_PATH" -storepass android -alias androiddebugkey | sha256sum | cut -d" " -f1)
+          test "$actual" = "8280d01969ce8128fdb5940eea83010ec69385e9fdb6dc6ecfdeed07974106c9"
           echo "MARINE_CERT_SHA256=$actual" >> "$GITHUB_ENV"
           echo "Restored certificate SHA-256: $actual"
       - name: Fetch and validate licensed regional wreck dataset
@@ -53,9 +54,18 @@ jobs:
           apk=app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk" | tee signing-report.txt
           grep -Fxi "Signer #1 certificate SHA-256 digest: $MARINE_CERT_SHA256" signing-report.txt
+      - name: Verify offline APK manifest
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions app/build/outputs/apk/debug/app-debug.apk > permissions.txt
+          if grep -Fq android.permission.INTERNET permissions.txt; then exit 1; fi
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > apk-info.txt
       - uses: actions/upload-artifact@v4
         with:
           name: MarineGPS-debug
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             signing-report.txt
+            permissions.txt
+            apk-info.txt
+            app/build/test-results/testDebugUnitTest/*.xml
