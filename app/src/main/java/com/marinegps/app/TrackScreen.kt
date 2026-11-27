@@ -31,8 +31,8 @@ import androidx.compose.ui.Alignment
  val tracks by remember{dao.observe()}.collectAsState(initial=emptyList())
  val health by TrackHealth.state.collectAsState()
  var clock by remember{mutableLongStateOf(android.os.SystemClock.elapsedRealtime())}
- LaunchedEffect(Unit){while(true){clock=android.os.SystemClock.elapsedRealtime();kotlinx.coroutines.delay(1000)}}
  val active=tracks.firstOrNull{it.ended==null}
+ LaunchedEffect(active?.state){while(active?.state=="recording"){clock=android.os.SystemClock.elapsedRealtime();kotlinx.coroutines.delay(1000)}}
  val scope=rememberCoroutineScope()
  var selection by remember{mutableStateOf(setOf<Long>())}
  var cancelRecording by remember{mutableStateOf(false)}
@@ -45,7 +45,7 @@ import androidx.compose.ui.Alignment
  fun command(action:String){
  if(context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){request();return}
  if(action in listOf("start","resume","reconnect")&&!context.getSystemService(LocationManager::class.java).isProviderEnabled(LocationManager.GPS_PROVIDER)){error="Enable GPS first";return}
- try{context.startForegroundService(Intent(context,TrackService::class.java).setAction(action));error=""}catch(e:Exception){error="Unable to start recording: "+e.localizedMessage}
+ try{context.startForegroundService(Intent(context,TrackService::class.java).setAction(action).putExtra("trackId",active?.id?:-1L));error=""}catch(e:Exception){error="Unable to start recording: "+e.localizedMessage}
  }
  Column(Modifier.fillMaxSize()){
  Text(tr("Track recording"),style=MaterialTheme.typography.titleLarge);Text(tr(active?.state?:"READY • Offline"))
@@ -88,9 +88,9 @@ internal fun niceScale(max:Double):Double {if(!max.isFinite()||max<=0)return 0.0
  if(points.isNotEmpty()&&size.width>48.dp.toPx()&&size.height>48.dp.toPx()){
  val origin=points.first()
  val xy=points.map{p-> val delta=((p.lon-origin.lon+540)%360)-180;delta*cos(Math.toRadians(origin.lat)) to p.lat-origin.lat}
- val minX=xy.minOf{it.first};val minY=xy.minOf{it.second}
- val scale=minOf((size.width-48.dp.toPx()).coerceAtLeast(1f)/(xy.maxOf{it.first}-minX).coerceAtLeast(0.0002),(size.height-48.dp.toPx()).coerceAtLeast(1f)/(xy.maxOf{it.second}-minY).coerceAtLeast(0.0002))
- val pos=xy.map{Offset(center.x+((it.first-(minX+xy.maxOf{p->p.first})/2)*scale).toFloat(),center.y-((it.second-(minY+xy.maxOf{p->p.second})/2)*scale).toFloat())}
+ val minX=xy.minOf{it.first};val minY=xy.minOf{it.second};val maxX=xy.maxOf{it.first};val maxY=xy.maxOf{it.second}
+ val scale=minOf((size.width-48.dp.toPx()).coerceAtLeast(1f)/(maxX-minX).coerceAtLeast(0.0002),(size.height-48.dp.toPx()).coerceAtLeast(1f)/(maxY-minY).coerceAtLeast(0.0002))
+ val pos=xy.map{Offset(center.x+((it.first-(minX+maxX)/2)*scale).toFloat(),center.y-((it.second-(minY+maxY)/2)*scale).toFloat())}
  for(i in 1 until pos.size)if(points[i].segment==points[i-1].segment)drawLine(color,pos[i-1],pos[i],3f)
  drawCircle(Color(0xFF22A65A),5.dp.toPx(),pos.first());drawCircle(Color(0xFFFF9800),4.dp.toPx(),pos.last())
  val metersPerPixel=111195.0/scale

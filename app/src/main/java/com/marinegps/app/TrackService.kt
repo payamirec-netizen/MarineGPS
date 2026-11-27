@@ -58,9 +58,11 @@ class TrackService:Service(),LocationListener {
  if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){stopSelf();return START_NOT_STICKY}
  try{startForeground(50,notification("Track recording"))}catch(e:Exception){stopSelf();return START_NOT_STICKY}
  val action=intent?.action?:"restore"
+ val expectedId=intent?.getLongExtra("trackId",-1L)?:-1L
  events.trySend command@{
  val dao=db.tracks()
  if(track==null)track=dao.active()
+ if(expectedId>=0&&track?.id!=expectedId){if(track==null)stopSelf();return@command}
  when(action){
  "cancel"->{sessionStarted=false;disconnect();releaseWake();track?.let{t->db.withTransaction{if(dao.active()?.id==t.id)dao.delete(t)}};track=null;previous=null;TrackHealth.mutable.value=RecordingHealth();stopForeground(STOP_FOREGROUND_REMOVE);stopSelf()}
  "stop"->{track?.let{dao.update(it.copy(ended=System.currentTimeMillis(),state="saved",activeMillis=it.activeMillis+pendingTime()))};track=null;sessionStarted=false;disconnect();releaseWake();TrackHealth.mutable.value=RecordingHealth();stopSelf()}

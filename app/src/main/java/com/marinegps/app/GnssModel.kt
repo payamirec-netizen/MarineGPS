@@ -21,22 +21,23 @@ class GnssModel(app:Application):AndroidViewModel(app){
  private var running=false
  private var requestedAt=0L
  private var lastReceived=0L
+ private var lastSatelliteUpdate=0L
  private val ticker=object:Runnable{override fun run(){val now=SystemClock.elapsedRealtime();mutable.update{it.copy(now=now)};if(running&&manager.isProviderEnabled(LocationManager.GPS_PROVIDER)&&shouldReconnect(now,lastReceived,requestedAt)){requestedAt=now;runCatching{manager.removeUpdates(listener);manager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,0f,listener,Looper.getMainLooper())}.onFailure{mutable.update{it.copy(message="GPS reconnect failed")}}};if(running)handler.postDelayed(this,1000)}}
  private val listener=object:LocationListener{
- override fun onLocationChanged(location:Location){if(!running)return;lastReceived=SystemClock.elapsedRealtime();mutable.update{it.copy(location=Location(location),message="Location received",now=SystemClock.elapsedRealtime())}}
+ override fun onLocationChanged(location:Location){if(!running||!validCoordinates(location.latitude,location.longitude))return;val now=SystemClock.elapsedRealtime();if(!freshFix(now-location.elapsedRealtimeNanos/1000000))return;lastReceived=now;mutable.update{it.copy(location=Location(location),message="Location received",now=SystemClock.elapsedRealtime())}}
  override fun onProviderDisabled(provider:String){mutable.value=GnssState(message="Enable location in Android settings")}
  override fun onProviderEnabled(provider:String){mutable.update{it.copy(message="Acquiring GPS")}}
  @Deprecated("Legacy callback") override fun onStatusChanged(provider:String?,status:Int,extras:android.os.Bundle?){}
  }
  private val callback=object:GnssStatus.Callback(){
- override fun onFirstFix(ttffMillis:Int){mutable.update{it.copy(ttff=ttffMillis)}}
+ override fun onFirstFix(ttffMillis:Int){if(!running)return;mutable.update{it.copy(ttff=ttffMillis)}}
  override fun onStopped(){if(!running)return;mutable.update{it.copy(satellites=emptyList(),location=null,message="Waiting for GPS")}}
- override fun onSatelliteStatusChanged(s:GnssStatus){if(!running)return;val rows=(0 until s.satelliteCount).map{i->Satellite(s.getConstellationType(i),s.getSvid(i),s.getCn0DbHz(i),s.usedInFix(i),s.getAzimuthDegrees(i),s.getElevationDegrees(i),if(s.hasCarrierFrequencyHz(i))s.getCarrierFrequencyHz(i) else null)};mutable.update{it.copy(satellites=rows)}}
+ override fun onSatelliteStatusChanged(s:GnssStatus){if(!running)return;val now=SystemClock.elapsedRealtime();if(now-lastSatelliteUpdate<500)return;lastSatelliteUpdate=now;val rows=(0 until s.satelliteCount).map{i->Satellite(s.getConstellationType(i),s.getSvid(i),s.getCn0DbHz(i),s.usedInFix(i),s.getAzimuthDegrees(i),s.getElevationDegrees(i),if(s.hasCarrierFrequencyHz(i))s.getCarrierFrequencyHz(i) else null)};mutable.update{it.copy(satellites=rows)}}
  }
  fun start(){
  if(running)return
  if(getApplication<Application>().checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){mutable.value=GnssState(message="Precise location permission required");return}
- requestedAt=SystemClock.elapsedRealtime();lastReceived=requestedAt
+ requestedAt=SystemClock.elapsedRealtime();lastReceived=requestedAt;lastSatelliteUpdate=0L
  mutable.value=GnssState(message="Acquiring GPS")
  try{
  if(!manager.isProviderEnabled(LocationManager.GPS_PROVIDER))mutable.update{it.copy(message="Enable location in Android settings")}
