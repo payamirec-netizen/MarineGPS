@@ -20,26 +20,25 @@ internal fun readBounded(input:java.io.InputStream):ByteArray{
  var log by remember{mutableStateOf(prefs.getString("log","").orEmpty())}
  var note by remember{mutableStateOf("")}
  val fix=currentFix(s)
- var anchor by remember{mutableStateOf<RouteVertex?>(null)}
+ val anchor by AnchorMonitor.state.collectAsState()
  var radius by remember{mutableIntStateOf(50)}
  var drift by remember{mutableStateOf<Pair<RouteVertex,Long>?>(null)}
- KeepNavigationScreenOn(anchor!=null)
- val exceeded=anchor?.let{a->fix?.let{targetMetrics(a.lat,a.lon,it.latitude,it.longitude).meters>radius}}==true
- LaunchedEffect(exceeded,anchor,fix==null){while((exceeded||fix==null)&&anchor!=null){val tone=android.media.ToneGenerator(android.media.AudioManager.STREAM_ALARM,100);try{tone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2,800);kotlinx.coroutines.delay(900)}finally{tone.release()};runCatching{c.getSystemService(android.os.Vibrator::class.java)?.vibrate(android.os.VibrationEffect.createOneShot(500,android.os.VibrationEffect.DEFAULT_AMPLITUDE))};kotlinx.coroutines.delay(4000)}}
  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
  Text(label("أدوات الصيد","Fishing tools"),style=MaterialTheme.typography.titleLarge)
- fix?.let{val date=java.time.LocalDate.now();val times=sunTimes(date,it.latitude,it.longitude);Text(label("الشروق والغروب (تقريبي)","Sunrise / sunset (approx.)"));Text(times?.joinToString(" / "){v->java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(java.time.ZoneId.systemDefault()).format(v)}?:"—")}
+ fix?.let{val date=java.time.LocalDate.now();val times=sunTimes(date,it.latitude,it.longitude);Text(label("الشروق والغروب (تقريبي)","Sunrise / sunset (approx.)"));val fmt=java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(java.time.ZoneId.systemDefault());Text(label("الشروق: ","Sunrise: ")+(times?.get(0)?.let{fmt.format(it)}?:"—"));Text(label("الغروب: ","Sunset: ")+(times?.get(1)?.let{fmt.format(it)}?:"—"))}
  Text(label("سجل المصيد","Catch log"))
  OutlinedTextField(note,{note=it.take(500)},label={Text(label("تفاصيل المصيد","Catch details"))})
  Button(onClick={val entry=java.text.DateFormat.getDateTimeInstance().format(java.util.Date())+" • "+note;log=(entry+"\n"+log).take(100000);prefs.edit().putString("log",log).apply();note=""},enabled=note.isNotBlank()){Text(label("حفظ","Save"))}
  Text(log)
  Text(label("قياس الانجراف","Drift measurement"))
- Button(onClick={fix?.let{drift=RouteVertex(it.latitude,it.longitude) to it.elapsedRealtimeNanos}},enabled=fix!=null){Text(label("بدء القياس","Start measurement"))}
+ Button(onClick={fix?.let{drift=RouteVertex(it.latitude,it.longitude) to it.elapsedRealtimeNanos}},enabled=fix!=null){Text(label("بدء / إعادة القياس","Start / reset measurement"))}
+ if(drift!=null)TextButton(onClick={drift=null}){Text(label("إيقاف القياس","Stop measurement"))}
  drift?.let{(p,t)->fix?.let{val sec=(it.elapsedRealtimeNanos-t)/1e9;val m=targetMetrics(p.lat,p.lon,it.latitude,it.longitude);if(sec>0)Text(ltrValue(speedLabel(m.meters/sec,"kn")+" • "+(m.bearing?.let{b->fmtPoint(b,1)+"°"}?:"—")))}}
- Text(label("تنبيه الرسو التجريبي — أبق الشاشة مفتوحة؛ ينبه عند فقد GPS أيضاً","Experimental anchor alert — keep this screen open; also alerts on GPS loss"))
- Row{listOf(25,50,100).forEach{v->FilterChip(radius==v,{radius=v},label={Text("$v m")})}}
- Button(onClick={if(anchor!=null)anchor=null else fix?.let{anchor=RouteVertex(it.latitude,it.longitude)}},enabled=anchor!=null||fix!=null){Text(if(anchor==null)label("تعيين نقطة الرسو","Set anchor") else label("إيقاف","Stop"))}
- if(anchor!=null)Text(if(fix==null)label("GPS غير متاح","GPS unavailable") else if(exceeded)label("خارج النطاق","Outside radius") else label("مراقبة النطاق","Monitoring radius"))
+ Text(label("تنبيه الرسو التجريبي — خدمة خلفية، لا تعتمد عليه وحده","Experimental background anchor alert — not a safety device"))
+ Row{listOf(25,50,100).forEach{v->FilterChip(radius==v,{radius=v},enabled=!anchor.active,label={Text(ltrValue("$v m"))})}}
+ Button(onClick={if(anchor.active)c.stopService(android.content.Intent(c,AnchorService::class.java)) else fix?.let{runCatching{androidx.core.content.ContextCompat.startForegroundService(c,android.content.Intent(c,AnchorService::class.java).putExtra("lat",it.latitude).putExtra("lon",it.longitude).putExtra("radius",radius))}}},enabled=anchor.active||fix!=null){Text(if(anchor.active)label("إيقاف","Stop") else label("تعيين نقطة الرسو","Set anchor"))}
+ Text(when(anchor.status){"Monitoring"->label("مراقبة النطاق","Monitoring");"Outside radius"->label("خارج النطاق","Outside radius");"GPS unavailable"->label("GPS غير متاح","GPS unavailable");else->anchor.status})
+ anchor.distance?.let{Text(ltrValue(distanceLabel(it,unit)))}
  OutlinedButton(onClick=back){Text(label("رجوع","Back"))}
  }
 }
